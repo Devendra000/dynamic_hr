@@ -42,3 +42,13 @@ Permissions:
     - Publish and migrate
         ```php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"```
         ```php artisan migrate```
+        (Adds tables migration)
+
+    - Update user model
+    - Add employee fields in users table 
+    - Seed Roles and Permissions
+
+    - Make middlewares to check roles and permissions
+        ```php artisan make:middleware CheckRole 
+        php artisan make:middleware CheckPermission```
+    - 
