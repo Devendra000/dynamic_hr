@@ -34,15 +34,28 @@ class FormSubmissionsImport implements ToCollection, WithHeadingRow, WithValidat
     }
 
     /**
-     * Process the collection with batch inserts for performance
+     * Process the collection in chunks for memory efficiency
      */
     public function collection(Collection $rows)
     {
-        // Validate all rows first and prepare data
+        $chunkSize = 500; // Process 500 rows at a time
+        $chunks = $rows->chunk($chunkSize);
+        
+        foreach ($chunks as $chunkRows) {
+            $this->processChunk($chunkRows);
+        }
+    }
+    
+    /**
+     * Process a chunk of rows
+     */
+    protected function processChunk(Collection $chunkRows)
+    {
+        // Validate chunk and prepare data
         $validSubmissions = [];
         $validResponses = [];
         
-        foreach ($rows as $index => $row) {
+        foreach ($chunkRows as $index => $row) {
             $rowNumber = $index + 2; // +2 because of header and 0-index
             
             try {
@@ -93,22 +106,22 @@ class FormSubmissionsImport implements ToCollection, WithHeadingRow, WithValidat
             }
         }
 
-        // Batch insert submissions
+        // Batch insert this chunk
         if (!empty($validSubmissions)) {
             try {
                 DB::beginTransaction();
                 
-                // Insert all submissions at once
+                // Insert submissions
                 DB::table('form_submissions')->insert($validSubmissions);
                 
-                // Get the IDs of inserted submissions
+                // Get inserted submission IDs
                 $insertedSubmissions = FormSubmission::where('form_template_id', $this->formTemplateId)
                     ->where('user_id', $this->userId)
                     ->latest()
                     ->limit(count($validSubmissions))
                     ->get();
                 
-                // Prepare batch responses
+                // Prepare responses for this chunk
                 $batchResponses = [];
                 foreach ($insertedSubmissions as $index => $submission) {
                     if (isset($validResponses[$index])) {
@@ -124,33 +137,32 @@ class FormSubmissionsImport implements ToCollection, WithHeadingRow, WithValidat
                     }
                 }
                 
-                // Batch insert responses in chunks of 500
-                foreach (array_chunk($batchResponses, 500) as $chunk) {
-                    DB::table('submission_responses')->insert($chunk);
+                // Insert responses in sub-chunks of 500
+                foreach (array_chunk($batchResponses, 500) as $responseChunk) {
+                    DB::table('submission_responses')->insert($responseChunk);
                 }
                 
                 DB::commit();
-                $this->imported = count($validSubmissions);
-                
-                Log::info('Batch import successful', [
-                    'imported' => $this->imported,
-                    'user_id' => $this->userId
-                ]);
+                $this->imported += count($validSubmissions);
                 
             } catch (\Exception $e) {
                 DB::rollBack();
                 $this->skipped += count($validSubmissions);
                 $this->errors[] = [
-                    'row' => 'batch',
-                    'error' => 'Batch insert failed: ' . $e->getMessage()
+                    'row' => 'chunk',
+                    'error' => 'Chunk insert failed: ' . $e->getMessage()
                 ];
                 
-                Log::error('Batch import failed', [
+                Log::error('Chunk import failed', [
                     'error' => $e->getMessage(),
                     'user_id' => $this->userId
                 ]);
             }
         }
+        
+        // Free memory after each chunk
+        unset($validSubmissions, $validResponses, $batchResponses);
+        gc_collect_cycles();
     }
 
     /**

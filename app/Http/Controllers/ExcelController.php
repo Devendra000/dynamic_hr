@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\FormSubmissionsExport;
 use App\Exports\FormTemplateExport;
 use App\Imports\FormSubmissionsImport;
+use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -71,6 +72,10 @@ class ExcelController extends Controller
      */
     public function exportSubmissions(Request $request): BinaryFileResponse|JsonResponse
     {
+        // Increase limits for large exports
+        set_time_limit(600); // 10 minutes
+        ini_set('memory_limit', '2G'); // 2GB for exports
+        
         try {
             $filters = $request->only(['form_template_id', 'status', 'user_id', 'date_from', 'date_to']);
             
@@ -82,14 +87,47 @@ class ExcelController extends Controller
                 }
             }
             
-            $fileName = 'form_submissions_' . date('Y-m-d_His') . '.xlsx';
+            // Check row count to determine format
+            $query = FormSubmission::query();
+            if (!empty($filters['form_template_id'])) {
+                $query->where('form_template_id', $filters['form_template_id']);
+            }
+            if (!empty($filters['status'])) {
+                $query->where('status', $filters['status']);
+            }
+            if (!empty($filters['user_id'])) {
+                $query->where('user_id', $filters['user_id']);
+            }
+            if (!empty($filters['date_from'])) {
+                $query->whereDate('created_at', '>=', $filters['date_from']);
+            }
+            if (!empty($filters['date_to'])) {
+                $query->whereDate('created_at', '<=', $filters['date_to']);
+            }
+            
+            $rowCount = $query->count();
+            
+            // Use CSV for large datasets (>10k rows) for speed
+            $format = $request->input('format', 'auto');
+            if ($format === 'auto') {
+                $format = $rowCount > 10000 ? 'csv' : 'xlsx';
+            }
+            
+            $extension = $format === 'csv' ? 'csv' : 'xlsx';
+            $fileName = 'form_submissions_' . date('Y-m-d_His') . '.' . $extension;
 
             Log::info('Exporting form submissions', [
                 'filters' => $filters,
+                'row_count' => $rowCount,
+                'format' => $format,
                 'user_id' => auth()->id()
             ]);
 
-            return Excel::download(new FormSubmissionsExport($filters), $fileName);
+            return Excel::download(
+                new FormSubmissionsExport($filters), 
+                $fileName,
+                $format === 'csv' ? \Maatwebsite\Excel\Excel::CSV : \Maatwebsite\Excel\Excel::XLSX
+            );
 
         } catch (\Exception $e) {
             Log::error('Failed to export submissions', [
@@ -198,9 +236,14 @@ class ExcelController extends Controller
      */
     public function importSubmissions(Request $request): JsonResponse
     {
+        // Increase limits BEFORE any processing
+        set_time_limit(600); // 10 minutes
+        ini_set('memory_limit', '1G');
+        ini_set('max_execution_time', '600');
+        
         try {
             $validated = $request->validate([
-                'file' => 'required|file|mimes:xlsx,xls|max:10240',
+                'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,text/comma-separated-values,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|max:51200',
                 'form_template_id' => 'required|exists:form_templates,id',
             ]);
 
@@ -216,6 +259,7 @@ class ExcelController extends Controller
             }
 
             $file = $request->file('file');
+            
             $import = new FormSubmissionsImport($validated['form_template_id'], auth()->id());
 
             Excel::import($import, $file);
@@ -289,25 +333,55 @@ class ExcelController extends Controller
     {
         try {
             $validated = $request->validate([
-                'file' => 'required|file|mimes:xlsx,xls|max:10240',
+                'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,text/comma-separated-values,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|max:51200',
                 'form_template_id' => 'required|exists:form_templates,id',
             ]);
 
             $formTemplate = FormTemplate::with('fields')->findOrFail($validated['form_template_id']);
             $file = $request->file('file');
 
-            // Read all rows
+            // For large files, skip full validation (too slow)
+            $fileSize = $file->getSize();
+            $isLargeFile = $fileSize > 1048576; // > 1MB
+            
+            if ($isLargeFile) {
+                return $this->successResponse(
+                    'Large file detected - validation skipped for performance',
+                    [
+                        'template' => [
+                            'id' => $formTemplate->id,
+                            'title' => $formTemplate->title,
+                            'fields_count' => $formTemplate->fields->count()
+                        ],
+                        'file_size' => round($fileSize / 1024 / 1024, 2) . ' MB',
+                        'large_file' => true,
+                        'note' => 'File is too large for preview validation. Proceed with import directly. Any errors will be reported after processing.',
+                        'validation' => [
+                            'valid' => null,
+                            'skipped' => true
+                        ]
+                    ]
+                );
+            }
+
+            // Increase memory limit temporarily for small files only
+            ini_set('memory_limit', '512M');
+            
+            // Read and validate small files
             $data = Excel::toArray(new FormSubmissionsImport($validated['form_template_id'], auth()->id()), $file);
             $rows = $data[0] ?? [];
             
-            $preview = array_slice($rows, 0, 6); // Header + 5 rows
             $totalRows = count($rows) - 1; // Exclude header
+            $sampleSize = min(100, $totalRows); // Validate max 100 rows for small files
+            $rowsToValidate = array_slice($rows, 0, $sampleSize + 1); // +1 for header
             
-            // Validate all rows
+            $preview = array_slice($rows, 0, 6); // Header + 5 rows
+            
+            // Validate sample rows
             $errors = [];
             $validRows = 0;
             
-            foreach ($rows as $index => $row) {
+            foreach ($rowsToValidate as $index => $row) {
                 if ($index === 0) continue; // Skip header
                 
                 $rowNumber = $index + 1;
@@ -378,6 +452,9 @@ class ExcelController extends Controller
                     ],
                     'preview' => $preview,
                     'total_rows' => $totalRows,
+                    'validated_rows' => $sampleSize,
+                    'is_sample' => $totalRows > 100,
+                    'sample_note' => $totalRows > 100 ? 'Only first 100 rows validated for performance' : null,
                     'valid_rows' => $validRows,
                     'invalid_rows' => count($errors),
                     'validation' => [
