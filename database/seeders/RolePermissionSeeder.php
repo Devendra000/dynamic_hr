@@ -132,7 +132,7 @@ class RolePermissionSeeder extends Seeder
         $hr = User::create([
             'name' => 'HR Manager',
             'email' => 'hr@dynamichr.com',
-            'password' => Hash::make('HR@123'),
+            'password' => Hash::make('TheHR@123'),
             'email_verified_at' => now(),
             'phone' => '+1234567891',
             'department' => 'Human Resources',

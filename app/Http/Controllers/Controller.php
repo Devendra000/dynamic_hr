@@ -6,6 +6,64 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Routing\Controller as BaseController;
 
+/**
+ * @OA\Info(
+ *     title="Dynamic HR Management System API",
+ *     version="1.0.0",
+ *     description="Enterprise-grade HR Management System with Role-Based Access Control",
+ *     @OA\Contact(
+ *         email="admin@dynamichr.com",
+ *         name="API Support"
+ *     ),
+ *     @OA\License(
+ *         name="MIT",
+ *         url="https://opensource.org/licenses/MIT"
+ *     )
+ * )
+ *
+ * @OA\Server(
+ *     url="http://localhost:8000/api",
+ *     description="Local Development Server"
+ * )
+ *
+ * @OA\SecurityScheme(
+ *     securityScheme="bearerAuth",
+ *     type="http",
+ *     scheme="bearer",
+ *     bearerFormat="JWT",
+ *     description="Enter your JWT token in the format: Bearer {token}"
+ * )
+ *
+ * @OA\Tag(
+ *     name="Authentication",
+ *     description="User authentication and JWT token management"
+ * )
+ *
+ * @OA\Tag(
+ *     name="User Management",
+ *     description="User CRUD operations and role/permission assignment"
+ * )
+ *
+ * @OA\Tag(
+ *     name="Role Management",
+ *     description="Role CRUD operations and permission management"
+ * )
+ *
+ * @OA\Tag(
+ *     name="Permission Management",
+ *     description="Permission CRUD operations"
+ * )
+ *
+ * @OA\Tag(
+ *     name="Employee Management",
+ *     description="Employee profile and status management"
+ * )
+ *
+ * @OA\Tag(
+ *     name="Dashboard",
+ *     description="Dashboard statistics and analytics"
+ * )
+ */
 class Controller extends BaseController
 {
     use AuthorizesRequests, ValidatesRequests;

@@ -14,6 +14,34 @@ class RoleController extends Controller
 {
     /**
      * Display a listing of roles.
+     *
+     * @OA\Get(
+     *     path="/admin/roles",
+     *     tags={"Role Management"},
+     *     summary="List all roles",
+     *     description="Get paginated list of roles with permissions",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="per_page",
+     *         in="query",
+     *         description="Items per page",
+     *         required=false,
+     *         @OA\Schema(type="integer", default=15)
+     *     ),
+     *     @OA\Parameter(
+     *         name="search",
+     *         in="query",
+     *         description="Search by role name",
+     *         required=false,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Roles retrieved successfully"
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=403, description="Forbidden")
+     * )
      */
     public function index(Request $request): JsonResponse
     {
@@ -58,6 +86,27 @@ class RoleController extends Controller
 
     /**
      * Store a newly created role.
+     *
+     * @OA\Post(
+     *     path="/admin/roles",
+     *     tags={"Role Management"},
+     *     summary="Create new role",
+     *     description="Create a new role with optional permissions",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name"},
+     *             @OA\Property(property="name", type="string", example="manager"),
+     *             @OA\Property(property="permissions", type="array", @OA\Items(type="string"), example={"view-employees", "manage-attendance"})
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="Role created successfully"
+     *     ),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
      */
     public function store(Request $request): JsonResponse
     {
@@ -117,6 +166,26 @@ class RoleController extends Controller
 
     /**
      * Display the specified role.
+     *
+     * @OA\Get(
+     *     path="/admin/roles/{id}",
+     *     tags={"Role Management"},
+     *     summary="Get role details",
+     *     description="Get detailed information about a specific role",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Role ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Role retrieved successfully"
+     *     ),
+     *     @OA\Response(response=404, description="Role not found")
+     * )
      */
     public function show(string $id): JsonResponse
     {
@@ -155,6 +224,33 @@ class RoleController extends Controller
 
     /**
      * Update the specified role.
+     *
+     * @OA\Put(
+     *     path="/admin/roles/{id}",
+     *     tags={"Role Management"},
+     *     summary="Update role",
+     *     description="Update role name (system roles cannot be modified)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Role ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="name", type="string", example="senior-manager")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Role updated successfully"
+     *     ),
+     *     @OA\Response(response=403, description="System role protected"),
+     *     @OA\Response(response=404, description="Role not found")
+     * )
      */
     public function update(Request $request, string $id): JsonResponse
     {
@@ -225,6 +321,27 @@ class RoleController extends Controller
 
     /**
      * Remove the specified role.
+     *
+     * @OA\Delete(
+     *     path="/admin/roles/{id}",
+     *     tags={"Role Management"},
+     *     summary="Delete role",
+     *     description="Delete a role (system roles and roles in use cannot be deleted)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Role ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Role deleted successfully"
+     *     ),
+     *     @OA\Response(response=403, description="System role protected"),
+     *     @OA\Response(response=422, description="Role is in use")
+     * )
      */
     public function destroy(string $id): JsonResponse
     {
@@ -294,6 +411,32 @@ class RoleController extends Controller
 
     /**
      * Assign permission to role.
+     *
+     * @OA\Post(
+     *     path="/admin/roles/{id}/permissions",
+     *     tags={"Role Management"},
+     *     summary="Assign permissions to role",
+     *     description="Assign one or more permissions to a role",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Role ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"permissions"},
+     *             @OA\Property(property="permissions", type="array", @OA\Items(type="string"), example={"view-employees", "edit-employees"})
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Permissions assigned successfully"
+     *     )
+     * )
      */
     public function assignPermission(Request $request, string $id): JsonResponse
     {
@@ -355,6 +498,32 @@ class RoleController extends Controller
 
     /**
      * Remove permission from role.
+     *
+     * @OA\Delete(
+     *     path="/admin/roles/{id}/permissions/{permission}",
+     *     tags={"Role Management"},
+     *     summary="Remove permission from role",
+     *     description="Remove a specific permission from a role",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Role ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Parameter(
+     *         name="permission",
+     *         in="path",
+     *         description="Permission name",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Permission removed successfully"
+     *     )
+     * )
      */
     public function removePermission(string $id, string $permission): JsonResponse
     {
@@ -411,6 +580,18 @@ class RoleController extends Controller
 
     /**
      * Get all permissions.
+     *
+     * @OA\Get(
+     *     path="/admin/permissions",
+     *     tags={"Permission Management"},
+     *     summary="List all permissions",
+     *     description="Get all available permissions grouped by category",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Permissions retrieved successfully"
+     *     )
+     * )
      */
     public function permissions(): JsonResponse
     {
@@ -450,6 +631,26 @@ class RoleController extends Controller
 
     /**
      * Create a new permission.
+     *
+     * @OA\Post(
+     *     path="/admin/permissions",
+     *     tags={"Permission Management"},
+     *     summary="Create new permission",
+     *     description="Create a new permission",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name"},
+     *             @OA\Property(property="name", type="string", example="manage-projects"),
+     *             @OA\Property(property="description", type="string", example="Can manage project assignments")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="Permission created successfully"
+     *     )
+     * )
      */
     public function createPermission(Request $request): JsonResponse
     {
@@ -498,6 +699,26 @@ class RoleController extends Controller
 
     /**
      * Delete a permission.
+     *
+     * @OA\Delete(
+     *     path="/admin/permissions/{id}",
+     *     tags={"Permission Management"},
+     *     summary="Delete permission",
+     *     description="Delete a permission (cannot delete if assigned to roles)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Permission ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Permission deleted successfully"
+     *     ),
+     *     @OA\Response(response=422, description="Permission in use")
+     * )
      */
     public function deletePermission(string $id): JsonResponse
     {
@@ -553,6 +774,18 @@ class RoleController extends Controller
 
     /**
      * Get role statistics.
+     *
+     * @OA\Get(
+     *     path="/admin/stats",
+     *     tags={"Dashboard"},
+     *     summary="Get role statistics",
+     *     description="Get comprehensive role and permission statistics",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Statistics retrieved successfully"
+     *     )
+     * )
      */
     public function stats(): JsonResponse
     {
@@ -595,6 +828,18 @@ class RoleController extends Controller
 
     /**
      * Get admin dashboard data.
+     *
+     * @OA\Get(
+     *     path="/admin/dashboard",
+     *     tags={"Dashboard"},
+     *     summary="Get admin dashboard",
+     *     description="Get admin dashboard with users, roles, and system statistics",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Dashboard data retrieved successfully"
+     *     )
+     * )
      */
     public function dashboard(): JsonResponse
     {

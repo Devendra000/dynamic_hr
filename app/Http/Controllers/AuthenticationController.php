@@ -38,6 +38,39 @@ class AuthenticationController extends Controller
     /**
      * Register a new user.
      *
+     * @OA\Post(
+     *     path="/auth/register",
+     *     tags={"Authentication"},
+     *     summary="Register a new user",
+     *     description="Create a new user account and return JWT token",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"name","email","password","password_confirmation"},
+     *             @OA\Property(property="name", type="string", example="John Doe"),
+     *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="Password123!"),
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="Password123!")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="User registered successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Authentication successful"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="access_token", type="string"),
+     *                 @OA\Property(property="token_type", type="string", example="bearer"),
+     *                 @OA\Property(property="expires_in", type="integer", example=3600),
+     *                 @OA\Property(property="user", type="object")
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="Validation error"),
+     *     @OA\Response(response=500, description="Server error")
+     * )
+     *
      * @param RegisterRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -64,6 +97,36 @@ class AuthenticationController extends Controller
     /**
      * Authenticate user and return JWT token.
      *
+     * @OA\Post(
+     *     path="/auth/login",
+     *     tags={"Authentication"},
+     *     summary="User login",
+     *     description="Authenticate user and return JWT token",
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"email","password"},
+     *             @OA\Property(property="email", type="string", format="email", example="admin@dynamichr.com"),
+     *             @OA\Property(property="password", type="string", format="password", example="Admin@123")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Successful login",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Authentication successful"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="access_token", type="string"),
+     *                 @OA\Property(property="token_type", type="string", example="bearer"),
+     *                 @OA\Property(property="expires_in", type="integer", example=3600)
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Invalid credentials"),
+     *     @OA\Response(response=422, description="Validation error")
+     * )
+     *
      * @param LoginRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -86,6 +149,24 @@ class AuthenticationController extends Controller
 
     /**
      * Get authenticated user profile.
+     *
+     * @OA\Get(
+     *     path="/auth/me",
+     *     tags={"Authentication"},
+     *     summary="Get current user",
+     *     description="Get authenticated user profile",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="User profile retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="User profile retrieved successfully"),
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      *
      * @return \Illuminate\Http\JsonResponse
      */
@@ -118,6 +199,23 @@ class AuthenticationController extends Controller
     /**
      * Logout user and invalidate token.
      *
+     * @OA\Post(
+     *     path="/auth/logout",
+     *     tags={"Authentication"},
+     *     summary="Logout user",
+     *     description="Logout user and invalidate JWT token",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Successfully logged out",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Successfully logged out")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     public function logout(Request $request): JsonResponse
@@ -142,6 +240,28 @@ class AuthenticationController extends Controller
     }
     /**
      * Refresh JWT token.
+     *
+     * @OA\Post(
+     *     path="/auth/refresh",
+     *     tags={"Authentication"},
+     *     summary="Refresh token",
+     *     description="Refresh JWT token and get a new one",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Token refreshed",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Authentication successful"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="access_token", type="string"),
+     *                 @OA\Property(property="token_type", type="string", example="bearer"),
+     *                 @OA\Property(property="expires_in", type="integer", example=3600)
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      *
      * @return \Illuminate\Http\JsonResponse
      */
@@ -168,6 +288,25 @@ class AuthenticationController extends Controller
 
     /**
      * Validate if the current token is valid.
+     *
+     * @OA\Get(
+     *     path="/auth/validate",
+     *     tags={"Authentication"},
+     *     summary="Validate token",
+     *     description="Check if JWT token is valid",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Token validation result",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Token is valid"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="valid", type="boolean", example=true)
+     *             )
+     *         )
+     *     )
+     * )
      *
      * @return \Illuminate\Http\JsonResponse
      */
