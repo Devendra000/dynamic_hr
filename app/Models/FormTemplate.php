@@ -58,6 +58,14 @@ class FormTemplate extends Model
     }
 
     /**
+     * Get all submissions for this template
+     */
+    public function submissions(): HasMany
+    {
+        return $this->hasMany(FormSubmission::class);
+    }
+
+    /**
      * Scope to get only active templates
      */
     public function scopeActive($query)

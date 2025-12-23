@@ -1,0 +1,523 @@
+<?php
+
+namespace App\Http\Controllers\Employee;
+
+use App\Http\Controllers\Controller;
+use App\Models\FormTemplate;
+use App\Models\FormSubmission;
+use App\Models\SubmissionResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class FormSubmissionController extends Controller
+{
+    /**
+     * Get available form templates for employees
+     *
+     * @OA\Get(
+     *     path="/employee/forms",
+     *     tags={"Form Submissions"},
+     *     summary="List available forms",
+     *     description="Get all active form templates available for submission",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Forms retrieved successfully"
+     *     )
+     * )
+     */
+    public function availableForms(): JsonResponse
+    {
+        try {
+            $forms = FormTemplate::with('fields')
+                ->active()
+                ->latest()
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Available forms retrieved successfully',
+                'data' => $forms
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve available forms', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve available forms',
+                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get my submissions
+     *
+     * @OA\Get(
+     *     path="/employee/submissions",
+     *     tags={"Form Submissions"},
+     *     summary="My submissions",
+     *     description="Get all my form submissions with pagination and filters",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="per_page",
+     *         in="query",
+     *         description="Items per page",
+     *         required=false,
+     *         @OA\Schema(type="integer", default=15)
+     *     ),
+     *     @OA\Parameter(
+     *         name="status",
+     *         in="query",
+     *         description="Filter by status",
+     *         required=false,
+     *         @OA\Schema(type="string", enum={"draft", "submitted", "approved", "rejected"})
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Submissions retrieved successfully"
+     *     )
+     * )
+     */
+    public function index(Request $request): JsonResponse
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $status = $request->get('status');
+
+            $submissions = FormSubmission::with(['template:id,title', 'responses.field'])
+                ->byUser(auth()->id())
+                ->when($status, function ($query, $status) {
+                    return $query->where('status', $status);
+                })
+                ->latest()
+                ->paginate($perPage);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Submissions retrieved successfully',
+                'data' => [
+                    'submissions' => $submissions->items(),
+                    'pagination' => [
+                        'total' => $submissions->total(),
+                        'per_page' => $submissions->perPage(),
+                        'current_page' => $submissions->currentPage(),
+                        'last_page' => $submissions->lastPage(),
+                        'from' => $submissions->firstItem(),
+                        'to' => $submissions->lastItem(),
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve submissions', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve submissions',
+                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Submit a form
+     *
+     * @OA\Post(
+     *     path="/employee/submissions",
+     *     tags={"Form Submissions"},
+     *     summary="Submit form",
+     *     description="Create a new form submission with responses",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"form_template_id", "responses"},
+     *             @OA\Property(property="form_template_id", type="integer", example=1),
+     *             @OA\Property(property="status", type="string", enum={"draft", "submitted"}, example="submitted"),
+     *             @OA\Property(
+     *                 property="responses",
+     *                 type="object",
+     *                 example={"1": "John Doe", "2": "john@example.com", "3": "2024-01-15"}
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="Form submitted successfully"
+     *     )
+     * )
+     */
+    public function store(Request $request): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'form_template_id' => 'required|exists:form_templates,id',
+                'status' => 'sometimes|in:draft,submitted',
+                'responses' => 'required|array',
+                'responses.*' => 'nullable|string',
+            ]);
+
+            // Check if template is active
+            $template = FormTemplate::with('fields')->findOrFail($validated['form_template_id']);
+            
+            if ($template->status !== FormTemplate::STATUS_ACTIVE) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This form is not currently active'
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            $submission = FormSubmission::create([
+                'form_template_id' => $validated['form_template_id'],
+                'user_id' => auth()->id(),
+                'status' => $validated['status'] ?? 'draft',
+                'submitted_at' => ($validated['status'] ?? 'draft') === 'submitted' ? now() : null,
+            ]);
+
+            // Save responses
+            foreach ($validated['responses'] as $fieldId => $value) {
+                // Validate field exists in template
+                $field = $template->fields()->find($fieldId);
+                if (!$field) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Invalid field ID: {$fieldId}"
+                    ], 422);
+                }
+
+                // Check required fields
+                if ($field->is_required && empty($value) && ($validated['status'] ?? 'draft') === 'submitted') {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Field '{$field->label}' is required"
+                    ], 422);
+                }
+
+                SubmissionResponse::create([
+                    'form_submission_id' => $submission->id,
+                    'form_field_id' => $fieldId,
+                    'response_value' => $value,
+                ]);
+            }
+
+            DB::commit();
+
+            Log::info('Form submission created', [
+                'submission_id' => $submission->id,
+                'user_id' => auth()->id(),
+                'template_id' => $validated['form_template_id']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Form submitted successfully',
+                'data' => $submission->load(['template', 'responses.field'])
+            ], 201);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to create submission', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create submission',
+                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Get a specific submission
+     *
+     * @OA\Get(
+     *     path="/employee/submissions/{id}",
+     *     tags={"Form Submissions"},
+     *     summary="Get submission details",
+     *     description="Get detailed information about a specific submission",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Submission ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Submission retrieved successfully"
+     *     ),
+     *     @OA\Response(response=403, description="Not your submission"),
+     *     @OA\Response(response=404, description="Submission not found")
+     * )
+     */
+    public function show(string $id): JsonResponse
+    {
+        try {
+            $submission = FormSubmission::with(['template.fields', 'responses.field', 'reviewer:id,name'])
+                ->findOrFail($id);
+
+            // Check ownership
+            if ($submission->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to view this submission'
+                ], 403);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Submission retrieved successfully',
+                'data' => $submission
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Submission not found'
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve submission', [
+                'submission_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve submission',
+                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Update a draft submission
+     *
+     * @OA\Put(
+     *     path="/employee/submissions/{id}",
+     *     tags={"Form Submissions"},
+     *     summary="Update draft submission",
+     *     description="Update a submission that is still in draft status",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Submission ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=false,
+     *         @OA\JsonContent(
+     *             @OA\Property(property="status", type="string", enum={"draft", "submitted"}),
+     *             @OA\Property(
+     *                 property="responses",
+     *                 type="object",
+     *                 example={"1": "Updated Value", "2": "updated@example.com"}
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Submission updated successfully"
+     *     ),
+     *     @OA\Response(response=422, description="Cannot update submitted forms")
+     * )
+     */
+    public function update(Request $request, string $id): JsonResponse
+    {
+        try {
+            $submission = FormSubmission::with('template.fields')->findOrFail($id);
+
+            // Check ownership
+            if ($submission->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to update this submission'
+                ], 403);
+            }
+
+            // Check if editable
+            if (!$submission->isEditable()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot update submission that has been submitted'
+                ], 422);
+            }
+
+            $validated = $request->validate([
+                'status' => 'sometimes|in:draft,submitted',
+                'responses' => 'sometimes|array',
+                'responses.*' => 'nullable|string',
+            ]);
+
+            DB::beginTransaction();
+
+            // Update submission status
+            if (isset($validated['status'])) {
+                $submission->update([
+                    'status' => $validated['status'],
+                    'submitted_at' => $validated['status'] === 'submitted' ? now() : null,
+                ]);
+            }
+
+            // Update responses
+            if (isset($validated['responses'])) {
+                foreach ($validated['responses'] as $fieldId => $value) {
+                    $field = $submission->template->fields()->find($fieldId);
+                    if (!$field) {
+                        continue;
+                    }
+
+                    $response = SubmissionResponse::where('form_submission_id', $submission->id)
+                        ->where('form_field_id', $fieldId)
+                        ->first();
+
+                    if ($response) {
+                        $response->update(['response_value' => $value]);
+                    } else {
+                        SubmissionResponse::create([
+                            'form_submission_id' => $submission->id,
+                            'form_field_id' => $fieldId,
+                            'response_value' => $value,
+                        ]);
+                    }
+                }
+            }
+
+            DB::commit();
+
+            Log::info('Submission updated', [
+                'submission_id' => $submission->id,
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Submission updated successfully',
+                'data' => $submission->load(['template', 'responses.field'])
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Submission not found'
+            ], 404);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to update submission', [
+                'submission_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update submission',
+                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a draft submission
+     *
+     * @OA\Delete(
+     *     path="/employee/submissions/{id}",
+     *     tags={"Form Submissions"},
+     *     summary="Delete draft submission",
+     *     description="Delete a submission that is still in draft status",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Submission ID",
+     *         required=true,
+     *         @OA\Schema(type="string")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Submission deleted successfully"
+     *     ),
+     *     @OA\Response(response=422, description="Cannot delete submitted forms")
+     * )
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        try {
+            $submission = FormSubmission::findOrFail($id);
+
+            // Check ownership
+            if ($submission->user_id !== auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to delete this submission'
+                ], 403);
+            }
+
+            // Check if deletable
+            if (!$submission->isDeletable()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete submission that has been submitted'
+                ], 422);
+            }
+
+            $submission->delete();
+
+            Log::info('Submission deleted', [
+                'submission_id' => $id,
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Submission deleted successfully'
+            ]);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Submission not found'
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Failed to delete submission', [
+                'submission_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete submission',
+                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
+            ], 500);
+        }
+    }
+}

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\FormSubmissionAdminController;
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\UserManagementController;
@@ -81,7 +82,7 @@ Route::group([
         Route::post('/{id}/permissions', [RoleController::class, 'assignPermission'])->name('admin.roles.assign-permission');
         Route::delete('/{id}/permissions/{permission}', [RoleController::class, 'removePermission'])->name('admin.roles.remove-permission');
     });
-    
+
     // Permission Management
     Route::prefix('permissions')->group(function () {
         Route::get('/', [RoleController::class, 'permissions'])->name('admin.permissions.index');
@@ -103,6 +104,16 @@ Route::group([
         Route::put('/{id}/fields/{fieldId}', [FormTemplateController::class, 'updateField'])->name('admin.form-templates.update-field');
         Route::delete('/{id}/fields/{fieldId}', [FormTemplateController::class, 'removeField'])->name('admin.form-templates.remove-field');
     });
+    
+    // Form Submission Management (Admin/HR)
+    Route::prefix('submissions')->group(function () {
+        Route::get('/', [FormSubmissionAdminController::class, 'index'])->name('admin.submissions.index');
+        Route::get('/stats', [FormSubmissionAdminController::class, 'stats'])->name('admin.submissions.stats');
+        Route::get('/{id}', [FormSubmissionAdminController::class, 'show'])->name('admin.submissions.show');
+        Route::put('/{id}/status', [FormSubmissionAdminController::class, 'updateStatus'])->name('admin.submissions.update-status');
+        Route::post('/{id}/comments', [FormSubmissionAdminController::class, 'addComment'])->name('admin.submissions.add-comment');
+    });
+
 });
 
 // EMPLOYEE ROUTES (Self-service)
@@ -112,4 +123,16 @@ Route::group([
 ], function () {
     // Employee can only view their own data
     Route::get('/profile', [AuthenticationController::class, 'me'])->name('employee.profile');
+    
+    // Available Forms
+    Route::get('/forms', [App\Http\Controllers\Employee\FormSubmissionController::class, 'availableForms'])->name('employee.forms');
+    
+    // Form Submissions
+    Route::prefix('submissions')->group(function () {
+        Route::get('/', [App\Http\Controllers\Employee\FormSubmissionController::class, 'index'])->name('employee.submissions.index');
+        Route::post('/', [App\Http\Controllers\Employee\FormSubmissionController::class, 'store'])->name('employee.submissions.store');
+        Route::get('/{id}', [App\Http\Controllers\Employee\FormSubmissionController::class, 'show'])->name('employee.submissions.show');
+        Route::put('/{id}', [App\Http\Controllers\Employee\FormSubmissionController::class, 'update'])->name('employee.submissions.update');
+        Route::delete('/{id}', [App\Http\Controllers\Employee\FormSubmissionController::class, 'destroy'])->name('employee.submissions.destroy');
+    });
 });

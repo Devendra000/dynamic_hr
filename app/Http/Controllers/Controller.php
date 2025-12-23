@@ -58,6 +58,11 @@ use Illuminate\Routing\Controller as BaseController;
  *     name="Form Template Management",
  *     description="Dynamic form template creation and field management"
  * )
+ *
+ * @OA\Tag(
+ *     name="Form Submissions",
+ *     description="Employee form submissions and admin review workflows"
+ * )
  */
 class Controller extends BaseController
 {

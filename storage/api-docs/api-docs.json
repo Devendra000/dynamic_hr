@@ -472,6 +472,244 @@
                 ]
             }
         },
+        "/admin/submissions": {
+            "get": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Get all submissions",
+                "description": "Get all form submissions with pagination and filters (Admin/HR only)",
+                "operationId": "368a709aa594b1c0ebc076efcea55bbe",
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Items per page",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "draft",
+                                "submitted",
+                                "approved",
+                                "rejected"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "form_template_id",
+                        "in": "query",
+                        "description": "Filter by template ID",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "description": "Filter by user ID",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Submissions retrieved successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/{id}": {
+            "get": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Get submission details",
+                "description": "Get detailed information about a specific submission (Admin/HR only)",
+                "operationId": "5ce388faee5535619ea6c2d20624dcf8",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Submission ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Submission retrieved successfully"
+                    },
+                    "404": {
+                        "description": "Submission not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/{id}/status": {
+            "put": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Update submission status",
+                "description": "Approve or reject a form submission (Admin/HR only)",
+                "operationId": "2e0bbb685310cce9f49104c3752512ff",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Submission ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "status"
+                                ],
+                                "properties": {
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "approved",
+                                            "rejected"
+                                        ],
+                                        "example": "approved"
+                                    },
+                                    "comments": {
+                                        "type": "string",
+                                        "example": "All information looks good"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Status updated successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/{id}/comments": {
+            "post": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Add comment",
+                "description": "Add or update comments on a submission (Admin/HR only)",
+                "operationId": "180a68e9688b8d543bf3c9501c225c9e",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Submission ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "comments"
+                                ],
+                                "properties": {
+                                    "comments": {
+                                        "type": "string",
+                                        "example": "Please provide additional information"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Comment added successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/stats": {
+            "get": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Get statistics",
+                "description": "Get submission statistics and analytics (Admin/HR only)",
+                "operationId": "1e5d65547f1a78989c9c9ae1cf62c303",
+                "parameters": [
+                    {
+                        "name": "form_template_id",
+                        "in": "query",
+                        "description": "Filter by template ID",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Statistics retrieved successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/admin/users": {
             "get": {
                 "tags": [
@@ -1223,6 +1461,254 @@
                                 }
                             }
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/forms": {
+            "get": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "List available forms",
+                "description": "Get all active form templates available for submission",
+                "operationId": "b998c81e89bf5338ca8efa7e98716198",
+                "responses": {
+                    "200": {
+                        "description": "Forms retrieved successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/submissions": {
+            "get": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "My submissions",
+                "description": "Get all my form submissions with pagination and filters",
+                "operationId": "8400424f5fdbb7f8026178faaa6cef9d",
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Items per page",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "draft",
+                                "submitted",
+                                "approved",
+                                "rejected"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Submissions retrieved successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Submit form",
+                "description": "Create a new form submission with responses",
+                "operationId": "c7a94c76a01cdb2c8d954c7d44ae9920",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "form_template_id",
+                                    "responses"
+                                ],
+                                "properties": {
+                                    "form_template_id": {
+                                        "type": "integer",
+                                        "example": 1
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "draft",
+                                            "submitted"
+                                        ],
+                                        "example": "submitted"
+                                    },
+                                    "responses": {
+                                        "type": "object",
+                                        "example": {
+                                            "1": "John Doe",
+                                            "2": "john@example.com",
+                                            "3": "2024-01-15"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Form submitted successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/submissions/{id}": {
+            "get": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Get submission details",
+                "description": "Get detailed information about a specific submission",
+                "operationId": "40e13a2e139978f43922934bcbdb3297",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Submission ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Submission retrieved successfully"
+                    },
+                    "403": {
+                        "description": "Not your submission"
+                    },
+                    "404": {
+                        "description": "Submission not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Update draft submission",
+                "description": "Update a submission that is still in draft status",
+                "operationId": "9cc40a1dda1a9cfe9152b564104a13a0",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Submission ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "draft",
+                                            "submitted"
+                                        ]
+                                    },
+                                    "responses": {
+                                        "type": "object",
+                                        "example": {
+                                            "1": "Updated Value",
+                                            "2": "updated@example.com"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Submission updated successfully"
+                    },
+                    "422": {
+                        "description": "Cannot update submitted forms"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Form Submissions"
+                ],
+                "summary": "Delete draft submission",
+                "description": "Delete a submission that is still in draft status",
+                "operationId": "c0f866c85c7606c0196a7a2f8b753af3",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Submission ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Submission deleted successfully"
+                    },
+                    "422": {
+                        "description": "Cannot delete submitted forms"
                     }
                 },
                 "security": [
@@ -2256,6 +2742,10 @@
         {
             "name": "Form Template Management",
             "description": "Dynamic form template creation and field management"
+        },
+        {
+            "name": "Form Submissions",
+            "description": "Employee form submissions and admin review workflows"
         },
         {
             "name": "Employee Management",
