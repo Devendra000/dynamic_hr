@@ -36,3 +36,9 @@ JWT Auth setup:
     - create specific exception ```php artisan make:exception AuthenticationException``` for exception handling for JWT
     - Use FormRequest validation for proper form data validation
 
+Permissions:
+    - Install spatie permission package
+        ```composer require spatie/laravel-permission```
+    - Publish and migrate
+        ```php artisan vendor:publish --provider="Spatie\Permission\PermissionServiceProvider"```
+        ```php artisan migrate```
