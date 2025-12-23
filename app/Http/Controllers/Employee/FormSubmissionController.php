@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use App\Http\Requests\FormSubmissionRequest;
 use App\Http\Requests\UpdateFormSubmissionRequest;
 use App\Models\FormTemplate;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 
 class FormSubmissionController extends Controller
 {
+    use ApiResponse;
     /**
      * Get available form templates for employees
      *
@@ -38,22 +40,17 @@ class FormSubmissionController extends Controller
                 ->latest()
                 ->get();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Available forms retrieved successfully',
-                'data' => $forms
-            ]);
+            return $this->successResponse('Available forms retrieved successfully', $forms);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve available forms', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve available forms',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve available forms',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -100,19 +97,15 @@ class FormSubmissionController extends Controller
                 ->latest()
                 ->paginate($perPage);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Submissions retrieved successfully',
-                'data' => [
-                    'submissions' => $submissions->items(),
-                    'pagination' => [
-                        'total' => $submissions->total(),
-                        'per_page' => $submissions->perPage(),
-                        'current_page' => $submissions->currentPage(),
-                        'last_page' => $submissions->lastPage(),
-                        'from' => $submissions->firstItem(),
-                        'to' => $submissions->lastItem(),
-                    ]
+            return $this->successResponse('Submissions retrieved successfully', [
+                'submissions' => $submissions->items(),
+                'pagination' => [
+                    'total' => $submissions->total(),
+                    'per_page' => $submissions->perPage(),
+                    'current_page' => $submissions->currentPage(),
+                    'last_page' => $submissions->lastPage(),
+                    'from' => $submissions->firstItem(),
+                    'to' => $submissions->lastItem(),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -121,11 +114,10 @@ class FormSubmissionController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve submissions',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve submissions',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -189,11 +181,11 @@ class FormSubmissionController extends Controller
                 'template_id' => $validated['form_template_id']
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Form submitted successfully',
-                'data' => $submission->load(['template', 'responses.field'])
-            ], 201);
+            return $this->successResponse(
+                'Form submitted successfully',
+                $submission->load(['template', 'responses.field']),
+                201
+            );
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -202,11 +194,10 @@ class FormSubmissionController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create submission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to create submission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -242,33 +233,22 @@ class FormSubmissionController extends Controller
 
             // Check ownership
             if ($submission->user_id !== auth()->id()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You do not have permission to view this submission'
-                ], 403);
+                return $this->forbiddenResponse('You do not have permission to view this submission');
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Submission retrieved successfully',
-                'data' => $submission
-            ]);
+            return $this->successResponse('Submission retrieved successfully', $submission);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Submission not found'
-            ], 404);
+            return $this->notFoundResponse('Submission not found');
         } catch (\Exception $e) {
             Log::error('Failed to retrieve submission', [
                 'submission_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve submission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve submission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -312,26 +292,20 @@ class FormSubmissionController extends Controller
             $submission = $request->getSubmission();
 
             if (!$submission) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Submission not found'
-                ], 404);
+                return $this->notFoundResponse('Submission not found');
             }
 
             // Check ownership
             if ($submission->user_id !== auth()->id()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You do not have permission to update this submission'
-                ], 403);
+                return $this->forbiddenResponse('You do not have permission to update this submission');
             }
 
             // Check if editable
             if (!$submission->isEditable()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot update submission that has been submitted'
-                ], 422);
+                return $this->validationErrorResponse(
+                    'Cannot update submission that has been submitted',
+                    []
+                );
             }
 
             $validated = $request->validated();
@@ -372,11 +346,10 @@ class FormSubmissionController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Submission updated successfully',
-                'data' => $submission->fresh()->load(['template', 'responses.field'])
-            ]);
+            return $this->successResponse(
+                'Submission updated successfully',
+                $submission->fresh()->load(['template', 'responses.field'])
+            );
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -385,11 +358,10 @@ class FormSubmissionController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update submission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to update submission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -423,18 +395,15 @@ class FormSubmissionController extends Controller
 
             // Check ownership
             if ($submission->user_id !== auth()->id()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You do not have permission to delete this submission'
-                ], 403);
+                return $this->forbiddenResponse('You do not have permission to delete this submission');
             }
 
             // Check if deletable
             if (!$submission->isDeletable()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot delete submission that has been submitted'
-                ], 422);
+                return $this->validationErrorResponse(
+                    'Cannot delete submission that has been submitted',
+                    []
+                );
             }
 
             $submission->delete();
@@ -444,27 +413,20 @@ class FormSubmissionController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Submission deleted successfully'
-            ]);
+            return $this->successResponse('Submission deleted successfully');
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Submission not found'
-            ], 404);
+            return $this->notFoundResponse('Submission not found');
         } catch (\Exception $e) {
             Log::error('Failed to delete submission', [
                 'submission_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete submission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to delete submission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 }

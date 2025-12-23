@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Spatie\Permission\Models\Role;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 class RoleController extends Controller
 {
+    use ApiResponse;
     /**
      * Display a listing of roles.
      *
@@ -55,19 +57,15 @@ class RoleController extends Controller
                 })
                 ->paginate($perPage);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Roles retrieved successfully',
-                'data' => [
-                    'roles' => $roles->items(),
-                    'pagination' => [
-                        'total' => $roles->total(),
-                        'per_page' => $roles->perPage(),
-                        'current_page' => $roles->currentPage(),
-                        'last_page' => $roles->lastPage(),
-                        'from' => $roles->firstItem(),
-                        'to' => $roles->lastItem(),
-                    ]
+            return $this->successResponse('Roles retrieved successfully', [
+                'roles' => $roles->items(),
+                'pagination' => [
+                    'total' => $roles->total(),
+                    'per_page' => $roles->perPage(),
+                    'current_page' => $roles->currentPage(),
+                    'last_page' => $roles->lastPage(),
+                    'from' => $roles->firstItem(),
+                    'to' => $roles->lastItem(),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -76,11 +74,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve roles',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve roles',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -136,18 +133,10 @@ class RoleController extends Controller
                 'created_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Role created successfully',
-                'data' => $role->load('permissions')
-            ], 201);
+            return $this->successResponse('Role created successfully', $role->load('permissions'), 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             DB::rollBack();
             
@@ -156,11 +145,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create role',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to create role',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -192,21 +180,13 @@ class RoleController extends Controller
         try {
             $role = Role::with(['permissions', 'users'])->findOrFail($id);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Role retrieved successfully',
-                'data' => [
-                    'role' => $role,
-                    'permissions' => $role->permissions->pluck('name'),
-                    'users_count' => $role->users->count()
-                ]
+            return $this->successResponse('Role retrieved successfully', [
+                'role' => $role,
+                'permissions' => $role->permissions->pluck('name'),
+                'users_count' => $role->users->count()
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Role not found',
-                'error_code' => 'ROLE_NOT_FOUND'
-            ], 404);
+            return $this->notFoundResponse('Role not found');
         } catch (\Exception $e) {
             Log::error('Failed to retrieve role', [
                 'role_id' => $id,
@@ -214,11 +194,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve role',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve role',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -259,11 +238,7 @@ class RoleController extends Controller
 
             // Prevent updating system roles
             if (in_array($role->name, ['admin', 'hr', 'employee'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'System roles cannot be modified',
-                    'error_code' => 'SYSTEM_ROLE_PROTECTED'
-                ], 403);
+                return $this->forbiddenResponse('System roles cannot be modified');
             }
 
             $validated = $request->validate([
@@ -284,24 +259,12 @@ class RoleController extends Controller
                 'updated_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Role updated successfully',
-                'data' => $role->load('permissions')
-            ]);
+            return $this->successResponse('Role updated successfully', $role->load('permissions'));
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Role not found',
-                'error_code' => 'ROLE_NOT_FOUND'
-            ], 404);
+            return $this->notFoundResponse('Role not found');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             DB::rollBack();
             
@@ -311,11 +274,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update role',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to update role',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -350,23 +312,15 @@ class RoleController extends Controller
 
             // Prevent deleting system roles
             if (in_array($role->name, ['admin', 'hr', 'employee'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'System roles cannot be deleted',
-                    'error_code' => 'SYSTEM_ROLE_PROTECTED'
-                ], 403);
+                return $this->forbiddenResponse('System roles cannot be deleted');
             }
 
             // Check if role is assigned to any users
             if ($role->users()->count() > 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot delete role that is assigned to users',
-                    'error_code' => 'ROLE_IN_USE',
-                    'data' => [
-                        'users_count' => $role->users()->count()
-                    ]
-                ], 422);
+                return $this->validationErrorResponse(
+                    'Cannot delete role that is assigned to users',
+                    ['users_count' => $role->users()->count()]
+                );
             }
 
             DB::beginTransaction();
@@ -381,17 +335,10 @@ class RoleController extends Controller
                 'deleted_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Role deleted successfully'
-            ]);
+            return $this->successResponse('Role deleted successfully');
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Role not found',
-                'error_code' => 'ROLE_NOT_FOUND'
-            ], 404);
+            return $this->notFoundResponse('Role not found');
         } catch (\Exception $e) {
             DB::rollBack();
             
@@ -401,11 +348,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete role',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to delete role',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -461,24 +407,12 @@ class RoleController extends Controller
                 'assigned_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Permissions assigned successfully',
-                'data' => $role->load('permissions')
-            ]);
+            return $this->successResponse('Permissions assigned successfully', $role->load('permissions'));
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Role not found',
-                'error_code' => 'ROLE_NOT_FOUND'
-            ], 404);
+            return $this->notFoundResponse('Role not found');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             DB::rollBack();
             
@@ -488,11 +422,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to assign permissions',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to assign permissions',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -548,18 +481,10 @@ class RoleController extends Controller
                 'removed_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Permission removed successfully',
-                'data' => $role->load('permissions')
-            ]);
+            return $this->successResponse('Permission removed successfully', $role->load('permissions'));
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Role or permission not found',
-                'error_code' => 'NOT_FOUND'
-            ], 404);
+            return $this->notFoundResponse('Role or permission not found');
         } catch (\Exception $e) {
             DB::rollBack();
             
@@ -570,11 +495,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to remove permission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to remove permission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -606,14 +530,10 @@ class RoleController extends Controller
                 return count($parts) > 1 ? $parts[1] : 'general';
             });
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Permissions retrieved successfully',
-                'data' => [
-                    'permissions' => $permissions,
-                    'grouped' => $grouped,
-                    'total' => $permissions->count()
-                ]
+            return $this->successResponse('Permissions retrieved successfully', [
+                'permissions' => $permissions,
+                'grouped' => $grouped,
+                'total' => $permissions->count()
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve permissions', [
@@ -621,11 +541,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve permissions',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve permissions',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -671,29 +590,20 @@ class RoleController extends Controller
                 'created_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Permission created successfully',
-                'data' => $permission
-            ], 201);
+            return $this->successResponse('Permission created successfully', $permission, 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             Log::error('Failed to create permission', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create permission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to create permission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -727,15 +637,13 @@ class RoleController extends Controller
 
             // Check if permission is assigned to any role
             if ($permission->roles()->count() > 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot delete permission that is assigned to roles',
-                    'error_code' => 'PERMISSION_IN_USE',
-                    'data' => [
+                return $this->validationErrorResponse(
+                    'Cannot delete permission that is assigned to roles',
+                    [
                         'roles_count' => $permission->roles()->count(),
                         'roles' => $permission->roles->pluck('name')
                     ]
-                ], 422);
+                );
             }
 
             $permissionName = $permission->name;
@@ -746,17 +654,10 @@ class RoleController extends Controller
                 'deleted_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Permission deleted successfully'
-            ]);
+            return $this->successResponse('Permission deleted successfully');
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Permission not found',
-                'error_code' => 'PERMISSION_NOT_FOUND'
-            ], 404);
+            return $this->notFoundResponse('Permission not found');
         } catch (\Exception $e) {
             Log::error('Failed to delete permission', [
                 'permission_id' => $id,
@@ -764,11 +665,10 @@ class RoleController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete permission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to delete permission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -807,22 +707,17 @@ class RoleController extends Controller
                     })
             ];
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Role statistics retrieved successfully',
-                'data' => $stats
-            ]);
+            return $this->successResponse('Role statistics retrieved successfully', $stats);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve role statistics', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve statistics',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve statistics',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -853,22 +748,17 @@ class RoleController extends Controller
                 'role_distribution' => Role::withCount('users')->get()
             ];
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Dashboard data retrieved successfully',
-                'data' => $data
-            ]);
+            return $this->successResponse('Dashboard data retrieved successfully', $data);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve dashboard data', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve dashboard data',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve dashboard data',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 }

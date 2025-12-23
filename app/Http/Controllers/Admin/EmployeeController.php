@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
+    use ApiResponse;
     /**
      * Get all employees with pagination and search
      *
@@ -76,19 +79,15 @@ class EmployeeController extends Controller
             ->latest()
             ->paginate($perPage);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Employees retrieved successfully',
-            'data' => [
-                'employees' => $employees->items(),
-                'pagination' => [
-                    'total' => $employees->total(),
-                    'per_page' => $employees->perPage(),
-                    'current_page' => $employees->currentPage(),
-                    'last_page' => $employees->lastPage(),
-                    'from' => $employees->firstItem(),
-                    'to' => $employees->lastItem(),
-                ]
+        return $this->successResponse('Employees retrieved successfully', [
+            'employees' => $employees->items(),
+            'pagination' => [
+                'total' => $employees->total(),
+                'per_page' => $employees->perPage(),
+                'current_page' => $employees->currentPage(),
+                'last_page' => $employees->lastPage(),
+                'from' => $employees->firstItem(),
+                'to' => $employees->lastItem(),
             ]
         ]);
     }
@@ -163,11 +162,7 @@ class EmployeeController extends Controller
             $employee->assignRole('employee'); // Default role
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Employee created successfully',
-            'data' => $employee->load(['roles', 'permissions'])
-        ], 201);
+        return $this->successResponse('Employee created successfully', $employee->load(['roles', 'permissions']), 201);
     }
 
     /**
@@ -197,14 +192,10 @@ class EmployeeController extends Controller
     {
         $employee = User::with(['roles', 'permissions'])->findOrFail($id);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Employee retrieved successfully',
-            'data' => [
-                'employee' => $employee,
-                'roles' => $employee->getRoleNames(),
-                'permissions' => $employee->getAllPermissions()->pluck('name'),
-            ]
+        return $this->successResponse('Employee retrieved successfully', [
+            'employee' => $employee,
+            'roles' => $employee->getRoleNames(),
+            'permissions' => $employee->getAllPermissions()->pluck('name'),
         ]);
     }
 
@@ -275,11 +266,7 @@ class EmployeeController extends Controller
 
         $employee->update($validated);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Employee updated successfully',
-            'data' => $employee->load(['roles', 'permissions'])
-        ]);
+        return $this->successResponse('Employee updated successfully', $employee->load(['roles', 'permissions']));
     }
 
     /**
@@ -311,28 +298,18 @@ class EmployeeController extends Controller
         
         // Prevent deleting yourself
         if ($employee->id === auth()->id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot delete your own account',
-                'error_code' => 'SELF_DELETION_NOT_ALLOWED'
-            ], 403);
+            return $this->forbiddenResponse('You cannot delete your own account');
         }
 
         // Check if employee has admin role (extra protection)
-        if ($employee->hasRole('admin') && !auth()->user()->hasRole('super-admin')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot delete an admin user',
-                'error_code' => 'INSUFFICIENT_PERMISSIONS'
-            ], 403);
+        $user = auth()->user();
+        if ($employee->hasRole('admin') && !$user->hasRole('super-admin')) {
+            return $this->forbiddenResponse('You cannot delete an admin user');
         }
 
         $employee->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Employee deleted successfully'
-        ]);
+        return $this->successResponse('Employee deleted successfully');
     }
 
     /**
@@ -377,11 +354,7 @@ class EmployeeController extends Controller
 
         // Prevent changing your own status
         if ($employee->id === auth()->id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot change your own status',
-                'error_code' => 'SELF_STATUS_CHANGE_NOT_ALLOWED'
-            ], 403);
+            return $this->forbiddenResponse('You cannot change your own status');
         }
 
         $employee->update([
@@ -389,7 +362,7 @@ class EmployeeController extends Controller
         ]);
 
         // Log the status change
-        \Log::info('Employee status changed', [
+        Log::info('Employee status changed', [
             'employee_id' => $employee->id,
             'changed_by' => auth()->id(),
             'old_status' => $employee->getOriginal('status'),
@@ -397,11 +370,7 @@ class EmployeeController extends Controller
             'reason' => $validated['reason'] ?? 'No reason provided'
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Employee status updated successfully',
-            'data' => $employee
-        ]);
+        return $this->successResponse('Employee status updated successfully', $employee);
     }
 
     /**
@@ -448,10 +417,6 @@ class EmployeeController extends Controller
             'recent_hires' => User::where('hire_date', '>=', now()->subDays(30))->count(),
         ];
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Employee statistics retrieved successfully',
-            'data' => $stats
-        ]);
+        return $this->successResponse('Employee statistics retrieved successfully', $stats);
     }
 }

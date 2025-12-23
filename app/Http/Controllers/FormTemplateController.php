@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Traits\ApiResponse;
 use App\Models\FormTemplate;
 use App\Models\FormField;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Validation\Rule;
 
 class FormTemplateController extends Controller
 {
+    use ApiResponse;
     /**
      * Get all form templates
      *
@@ -65,19 +67,15 @@ class FormTemplateController extends Controller
                 ->latest()
                 ->paginate($perPage);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Form templates retrieved successfully',
-                'data' => [
-                    'templates' => $templates->items(),
-                    'pagination' => [
-                        'total' => $templates->total(),
-                        'per_page' => $templates->perPage(),
-                        'current_page' => $templates->currentPage(),
-                        'last_page' => $templates->lastPage(),
-                        'from' => $templates->firstItem(),
-                        'to' => $templates->lastItem(),
-                    ]
+            return $this->successResponse('Form templates retrieved successfully', [
+                'templates' => $templates->items(),
+                'pagination' => [
+                    'total' => $templates->total(),
+                    'per_page' => $templates->perPage(),
+                    'current_page' => $templates->currentPage(),
+                    'last_page' => $templates->lastPage(),
+                    'from' => $templates->firstItem(),
+                    'to' => $templates->lastItem(),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -86,11 +84,10 @@ class FormTemplateController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve form templates',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve form templates',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -188,19 +185,11 @@ class FormTemplateController extends Controller
                 'created_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Form template created successfully',
-                'data' => $template->load('fields')
-            ], 201);
+            return $this->successResponse('Form template created successfully', $template->load('fields'), 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to create form template', [
@@ -208,11 +197,10 @@ class FormTemplateController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to create form template',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to create form template',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -247,27 +235,19 @@ class FormTemplateController extends Controller
             }, 'creator:id,name,email'])
                 ->findOrFail($id);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Form template retrieved successfully',
-                'data' => $template
-            ]);
+            return $this->successResponse('Form template retrieved successfully', $template);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Form template not found'
-            ], 404);
+            return $this->notFoundResponse('Form template not found');
         } catch (\Exception $e) {
             Log::error('Failed to retrieve form template', [
                 'template_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve form template',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve form template',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -319,34 +299,22 @@ class FormTemplateController extends Controller
                 'updated_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Form template updated successfully',
-                'data' => $template->load('fields')
-            ]);
+            return $this->successResponse('Form template updated successfully', $template->load('fields'));
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Form template not found'
-            ], 404);
+            return $this->notFoundResponse('Form template not found');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             Log::error('Failed to update form template', [
                 'template_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update form template',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to update form template',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -378,14 +346,6 @@ class FormTemplateController extends Controller
         try {
             $template = FormTemplate::findOrFail($id);
 
-            // TODO: Check if template has submissions once FormSubmission model is created
-            // if ($template->submissions()->count() > 0) {
-            //     return response()->json([
-            //         'success' => false,
-            //         'message' => 'Cannot delete template with existing submissions'
-            //     ], 422);
-            // }
-
             $template->delete();
 
             Log::info('Form template deleted', [
@@ -393,27 +353,20 @@ class FormTemplateController extends Controller
                 'deleted_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Form template deleted successfully'
-            ]);
+            return $this->successResponse('Form template deleted successfully');
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Form template not found'
-            ], 404);
+            return $this->notFoundResponse('Form template not found');
         } catch (\Exception $e) {
             Log::error('Failed to delete form template', [
                 'template_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to delete form template',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to delete form template',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -474,18 +427,11 @@ class FormTemplateController extends Controller
                 'created_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Form template duplicated successfully',
-                'data' => $newTemplate->load('fields')
-            ], 201);
+            return $this->successResponse('Form template duplicated successfully', $newTemplate->load('fields'), 201);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Form template not found'
-            ], 404);
+            return $this->notFoundResponse('Form template not found');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to duplicate form template', [
@@ -493,11 +439,10 @@ class FormTemplateController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to duplicate form template',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to duplicate form template',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -580,34 +525,22 @@ class FormTemplateController extends Controller
                 'added_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Field added successfully',
-                'data' => $field
-            ], 201);
+            return $this->successResponse('Field added successfully', $field, 201);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Form template not found'
-            ], 404);
+            return $this->notFoundResponse('Form template not found');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             Log::error('Failed to add field to template', [
                 'template_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to add field',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to add field',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -686,23 +619,12 @@ class FormTemplateController extends Controller
                 'updated_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Field updated successfully',
-                'data' => $field
-            ]);
+            return $this->successResponse('Field updated successfully', $field);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Template or field not found'
-            ], 404);
+            return $this->notFoundResponse('Template or field not found');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             Log::error('Failed to update field', [
                 'template_id' => $id,
@@ -710,11 +632,10 @@ class FormTemplateController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update field',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to update field',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -763,16 +684,10 @@ class FormTemplateController extends Controller
                 'removed_by' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Field removed successfully'
-            ]);
+            return $this->successResponse('Field removed successfully');
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Template or field not found'
-            ], 404);
+            return $this->notFoundResponse('Template or field not found');
         } catch (\Exception $e) {
             Log::error('Failed to remove field', [
                 'template_id' => $id,
@@ -780,11 +695,10 @@ class FormTemplateController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to remove field',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to remove field',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 }

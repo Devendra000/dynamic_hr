@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use App\Models\FormSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 
 class FormSubmissionAdminController extends Controller
 {
+    use ApiResponse;
     /**
      * Get all submissions
      *
@@ -75,19 +77,15 @@ class FormSubmissionAdminController extends Controller
                 ->latest()
                 ->paginate($perPage);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Submissions retrieved successfully',
-                'data' => [
-                    'submissions' => $submissions->items(),
-                    'pagination' => [
-                        'total' => $submissions->total(),
-                        'per_page' => $submissions->perPage(),
-                        'current_page' => $submissions->currentPage(),
-                        'last_page' => $submissions->lastPage(),
-                        'from' => $submissions->firstItem(),
-                        'to' => $submissions->lastItem(),
-                    ]
+            return $this->successResponse('Submissions retrieved successfully', [
+                'submissions' => $submissions->items(),
+                'pagination' => [
+                    'total' => $submissions->total(),
+                    'per_page' => $submissions->perPage(),
+                    'current_page' => $submissions->currentPage(),
+                    'last_page' => $submissions->lastPage(),
+                    'from' => $submissions->firstItem(),
+                    'to' => $submissions->lastItem(),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -96,11 +94,10 @@ class FormSubmissionAdminController extends Controller
                 'admin_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve submissions',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve submissions',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -137,27 +134,19 @@ class FormSubmissionAdminController extends Controller
                 'reviewer:id,name'
             ])->findOrFail($id);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Submission retrieved successfully',
-                'data' => $submission
-            ]);
+            return $this->successResponse('Submission retrieved successfully', $submission);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Submission not found'
-            ], 404);
+            return $this->notFoundResponse('Submission not found');
         } catch (\Exception $e) {
             Log::error('Failed to retrieve submission', [
                 'submission_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve submission',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve submission',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -203,10 +192,10 @@ class FormSubmissionAdminController extends Controller
 
             // Can only review submitted forms
             if ($submission->status !== FormSubmission::STATUS_SUBMITTED) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Can only review submissions that are in submitted status'
-                ], 422);
+                return $this->validationErrorResponse(
+                    'Can only review submissions that are in submitted status',
+                    []
+                );
             }
 
             DB::beginTransaction();
@@ -226,25 +215,17 @@ class FormSubmissionAdminController extends Controller
                 'reviewer_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Submission status updated successfully',
-                'data' => $submission->load(['template', 'user:id,name,email', 'reviewer:id,name'])
-            ]);
+            return $this->successResponse(
+                'Submission status updated successfully',
+                $submission->load(['template', 'user:id,name,email', 'reviewer:id,name'])
+            );
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Submission not found'
-            ], 404);
+            return $this->notFoundResponse('Submission not found');
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to update submission status', [
@@ -252,11 +233,10 @@ class FormSubmissionAdminController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to update submission status',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to update submission status',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -307,34 +287,25 @@ class FormSubmissionAdminController extends Controller
                 'admin_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Comment added successfully',
-                'data' => $submission->load(['template', 'user:id,name,email'])
-            ]);
+            return $this->successResponse(
+                'Comment added successfully',
+                $submission->load(['template', 'user:id,name,email'])
+            );
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Submission not found'
-            ], 404);
+            return $this->notFoundResponse('Submission not found');
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             Log::error('Failed to add comment', [
                 'submission_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to add comment',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to add comment',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -387,24 +358,19 @@ class FormSubmissionAdminController extends Controller
                 ->take(10)
                 ->get();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Statistics retrieved successfully',
-                'data' => [
-                    'stats' => $stats,
-                    'recent_submissions' => $recentSubmissions,
-                ]
+            return $this->successResponse('Statistics retrieved successfully', [
+                'stats' => $stats,
+                'recent_submissions' => $recentSubmissions,
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to retrieve statistics', [
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve statistics',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to retrieve statistics',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 }

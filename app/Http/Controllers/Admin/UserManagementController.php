@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,7 @@ use Spatie\Permission\Models\Permission;
 
 class UserManagementController extends Controller
 {
+    use ApiResponse;
     /**
      * Get all users with their roles and permissions
      *
@@ -55,11 +57,7 @@ class UserManagementController extends Controller
             })
             ->paginate($perPage);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Users retrieved successfully',
-            'data' => $users
-        ]);
+        return $this->successResponse('Users retrieved successfully', $users);
     }
 
     /**
@@ -107,11 +105,7 @@ class UserManagementController extends Controller
             $user->assignRole($validated['role']);
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User created successfully',
-            'data' => $user->load(['roles', 'permissions'])
-        ], 201);
+        return $this->successResponse('User created successfully', $user->load(['roles', 'permissions']), 201);
     }
 
     /**
@@ -141,11 +135,7 @@ class UserManagementController extends Controller
     {
         $user = User::with(['roles', 'permissions'])->findOrFail($id);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User retrieved successfully',
-            'data' => $user
-        ]);
+        return $this->successResponse('User retrieved successfully', $user);
     }
 
     /**
@@ -198,11 +188,7 @@ class UserManagementController extends Controller
 
         $user->update($validated);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User updated successfully',
-            'data' => $user->load(['roles', 'permissions'])
-        ]);
+        return $this->successResponse('User updated successfully', $user->load(['roles', 'permissions']));
     }
 
     /**
@@ -234,18 +220,12 @@ class UserManagementController extends Controller
         
         // Prevent deleting yourself
         if ($user->id === auth()->id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot delete your own account'
-            ], 403);
+            return $this->forbiddenResponse('You cannot delete your own account');
         }
 
         $user->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User deleted successfully'
-        ]);
+        return $this->successResponse('User deleted successfully');
     }
 
     /**
@@ -287,11 +267,7 @@ class UserManagementController extends Controller
 
         $user->assignRole($validated['role']);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Role assigned successfully',
-            'data' => $user->load(['roles', 'permissions'])
-        ]);
+        return $this->successResponse('Role assigned successfully', $user->load(['roles', 'permissions']));
     }
 
     /**
@@ -328,11 +304,7 @@ class UserManagementController extends Controller
         $user = User::findOrFail($id);
         $user->removeRole($role);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Role removed successfully',
-            'data' => $user->load(['roles', 'permissions'])
-        ]);
+        return $this->successResponse('Role removed successfully', $user->load(['roles', 'permissions']));
     }
 
     /**
@@ -374,11 +346,7 @@ class UserManagementController extends Controller
 
         $user->givePermissionTo($validated['permission']);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Permission assigned successfully',
-            'data' => $user->load(['roles', 'permissions'])
-        ]);
+        return $this->successResponse('Permission assigned successfully', $user->load(['roles', 'permissions']));
     }
 
     /**
@@ -415,10 +383,6 @@ class UserManagementController extends Controller
         $user = User::findOrFail($id);
         $user->revokePermissionTo($permission);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Permission removed successfully',
-            'data' => $user->load(['roles', 'permissions'])
-        ]);
+        return $this->successResponse('Permission removed successfully', $user->load(['roles', 'permissions']));
     }
 }

@@ -6,6 +6,7 @@ use App\Exports\FormSubmissionsExport;
 use App\Exports\FormTemplateExport;
 use App\Imports\FormSubmissionsImport;
 use App\Models\FormTemplate;
+use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -14,6 +15,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ExcelController extends Controller
 {
+    use ApiResponse;
     /**
      * Export form submissions to Excel
      *
@@ -76,10 +78,7 @@ class ExcelController extends Controller
             if (!empty($filters['form_template_id'])) {
                 $template = FormTemplate::find($filters['form_template_id']);
                 if (!$template) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Form template not found',
-                    ], 404);
+                    return $this->notFoundResponse('Form template not found');
                 }
             }
             
@@ -98,11 +97,10 @@ class ExcelController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to export submissions',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to export submissions',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -147,21 +145,17 @@ class ExcelController extends Controller
             return Excel::download(new FormTemplateExport($id), $fileName);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Form template not found'
-            ], 404);
+            return $this->notFoundResponse('Form template not found');
         } catch (\Exception $e) {
             Log::error('Failed to download template', [
                 'template_id' => $id,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to download template',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to download template',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -214,11 +208,11 @@ class ExcelController extends Controller
 
             // Check if template is active
             if ($formTemplate->status !== FormTemplate::STATUS_ACTIVE) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot import to inactive form template',
-                    'status' => $formTemplate->status,
-                ], 422);
+                return $this->errorResponse(
+                    'Cannot import to inactive form template',
+                    ['status' => $formTemplate->status],
+                    422
+                );
             }
 
             $file = $request->file('file');
@@ -234,34 +228,25 @@ class ExcelController extends Controller
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Import completed',
-                'data' => [
-                    'imported' => $stats['imported'],
-                    'skipped' => $stats['skipped'],
-                    'total' => $stats['imported'] + $stats['skipped'],
-                    'errors' => $stats['errors']
-                ]
+            return $this->successResponse('Import completed', [
+                'imported' => $stats['imported'],
+                'skipped' => $stats['skipped'],
+                'total' => $stats['imported'] + $stats['skipped'],
+                'errors' => $stats['errors']
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             Log::error('Failed to import submissions', [
                 'error' => $e->getMessage(),
                 'user_id' => auth()->id()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to import submissions',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to import submissions',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 
@@ -311,16 +296,81 @@ class ExcelController extends Controller
             $formTemplate = FormTemplate::with('fields')->findOrFail($validated['form_template_id']);
             $file = $request->file('file');
 
-            // Read first 5 rows for preview
+            // Read all rows
             $data = Excel::toArray(new FormSubmissionsImport($validated['form_template_id'], auth()->id()), $file);
+            $rows = $data[0] ?? [];
             
-            $preview = array_slice($data[0] ?? [], 0, 6); // Header + 5 rows
-            $totalRows = count($data[0] ?? []) - 1; // Exclude header
+            $preview = array_slice($rows, 0, 6); // Header + 5 rows
+            $totalRows = count($rows) - 1; // Exclude header
+            
+            // Validate all rows
+            $errors = [];
+            $validRows = 0;
+            
+            foreach ($rows as $index => $row) {
+                if ($index === 0) continue; // Skip header
+                
+                $rowNumber = $index + 1;
+                $rowErrors = [];
+                
+                // Check each field
+                foreach ($formTemplate->fields as $field) {
+                    $fieldLabel = strtolower(str_replace(' ', '_', $field->label));
+                    $value = $row[$fieldLabel] ?? null;
+                    
+                    // Check required fields
+                    if ($field->is_required && (empty($value) && $value !== '0')) {
+                        $rowErrors[] = "Required field '{$field->label}' is missing";
+                    }
+                    
+                    // Validate field type if value exists
+                    if (!empty($value) || $value === '0') {
+                        switch ($field->field_type) {
+                            case 'email':
+                                if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                                    $rowErrors[] = "Invalid email format in '{$field->label}'";
+                                }
+                                break;
+                            
+                            case 'number':
+                                if (!is_numeric($value)) {
+                                    $rowErrors[] = "Invalid number format in '{$field->label}'";
+                                }
+                                break;
+                            
+                            case 'date':
+                                try {
+                                    \Carbon\Carbon::parse($value);
+                                } catch (\Exception $e) {
+                                    $rowErrors[] = "Invalid date format in '{$field->label}'";
+                                }
+                                break;
+                            
+                            case 'dropdown':
+                            case 'radio':
+                                if (!empty($field->options) && !in_array($value, $field->options)) {
+                                    $rowErrors[] = "Invalid option '{$value}' for '{$field->label}'. Allowed: " . implode(', ', $field->options);
+                                }
+                                break;
+                        }
+                    }
+                }
+                
+                if (!empty($rowErrors)) {
+                    $errors[] = [
+                        'row' => $rowNumber,
+                        'errors' => $rowErrors
+                    ];
+                } else {
+                    $validRows++;
+                }
+            }
+            
+            $isValid = empty($errors);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'File validated successfully',
-                'data' => [
+            return $this->successResponse(
+                $isValid ? 'File validated successfully' : 'Validation errors found',
+                [
                     'template' => [
                         'id' => $formTemplate->id,
                         'title' => $formTemplate->title,
@@ -328,29 +378,26 @@ class ExcelController extends Controller
                     ],
                     'preview' => $preview,
                     'total_rows' => $totalRows,
+                    'valid_rows' => $validRows,
+                    'invalid_rows' => count($errors),
                     'validation' => [
-                        'valid' => true,
-                        'warnings' => []
+                        'valid' => $isValid,
+                        'errors' => $errors
                     ]
                 ]
-            ]);
+            );
 
         } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+            return $this->validationErrorResponse('Validation failed', $e->errors());
         } catch (\Exception $e) {
             Log::error('Failed to validate import', [
                 'error' => $e->getMessage()
             ]);
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to validate file',
-                'data' => config('app.debug') ? ['error' => $e->getMessage()] : null
-            ], 500);
+            return $this->serverErrorResponse(
+                'Failed to validate file',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
         }
     }
 }
