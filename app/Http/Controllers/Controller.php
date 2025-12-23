@@ -53,16 +53,6 @@ use Illuminate\Routing\Controller as BaseController;
  *     name="Permission Management",
  *     description="Permission CRUD operations"
  * )
- *
- * @OA\Tag(
- *     name="Employee Management",
- *     description="Employee profile and status management"
- * )
- *
- * @OA\Tag(
- *     name="Dashboard",
- *     description="Dashboard statistics and analytics"
- * )
  */
 class Controller extends BaseController
 {

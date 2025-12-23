@@ -3,7 +3,6 @@
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\UserManagementController;
-use App\Http\Controllers\Admin\EmployeeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -88,32 +87,9 @@ Route::group([
         Route::post('/', [RoleController::class, 'createPermission'])->name('admin.permissions.store');
         Route::delete('/{id}', [RoleController::class, 'deletePermission'])->name('admin.permissions.destroy');
     });
-    
-    // Employee Management (Admin only)
-    Route::prefix('employees')->group(function () {
-        Route::get('/', [EmployeeController::class, 'index'])->name('admin.employees.index');
-        Route::post('/', [EmployeeController::class, 'store'])->name('admin.employees.store');
-        Route::get('/{id}', [EmployeeController::class, 'show'])->name('admin.employees.show');
-        Route::put('/{id}', [EmployeeController::class, 'update'])->name('admin.employees.update');
-        Route::delete('/{id}', [EmployeeController::class, 'destroy'])->name('admin.employees.destroy');
-        Route::patch('/{id}/status', [EmployeeController::class, 'updateStatus'])->name('admin.employees.status');
-    });
 });
 
-// HR ROUTES
-Route::group([
-    'middleware' => ['api', 'auth:api', 'role:admin,hr'],
-    'prefix' => 'hr'
-], function () {
-    // HR can view employees but with limited actions
-    Route::get('/employees', [EmployeeController::class, 'index'])->name('hr.employees.index');
-    Route::get('/employees/{id}', [EmployeeController::class, 'show'])->name('hr.employees.show');
-    Route::put('/employees/{id}', [EmployeeController::class, 'update'])->name('hr.employees.update');
-});
-
-// ========================================
-// 👤 EMPLOYEE ROUTES
-// ========================================
+// EMPLOYEE ROUTES (Self-service)
 Route::group([
     'middleware' => ['api', 'auth:api'],
     'prefix' => 'employee'
