@@ -9,7 +9,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class FormTemplateExport implements FromArray, WithHeadings, WithStyles, ShouldAutoSize
+class FormTemplateExport implements FromArray, WithHeadings, ShouldAutoSize
 {
     protected $formTemplate;
 
@@ -78,64 +78,5 @@ class FormTemplateExport implements FromArray, WithHeadings, WithStyles, ShouldA
     public function headings(): array
     {
         return $this->formTemplate->fields->sortBy('order')->pluck('label')->toArray();
-    }
-
-    /**
-     * Apply styles to the worksheet
-     */
-    public function styles(Worksheet $sheet)
-    {
-        // Style the header row
-        $sheet->getStyle('1:1')->applyFromArray([
-            'font' => [
-                'bold' => true,
-                'size' => 12,
-                'color' => ['rgb' => 'FFFFFF'],
-            ],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '4472C4'],
-            ],
-        ]);
-
-        // Style the instruction row
-        $sheet->getStyle('2:2')->applyFromArray([
-            'font' => [
-                'italic' => true,
-                'color' => ['rgb' => '808080'],
-            ],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'FFF2CC'],
-            ],
-        ]);
-
-        // Add dropdown validation for dropdown/radio fields
-        foreach ($this->formTemplate->fields->sortBy('order') as $index => $field) {
-            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index + 1);
-            
-            // Add dropdown validation for dropdown/radio fields
-            if (in_array($field->field_type, ['dropdown', 'radio']) && !empty($field->options)) {
-                $validation = $sheet->getCell($column . '3')->getDataValidation();
-                $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
-                $validation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
-                $validation->setAllowBlank(true);
-                $validation->setShowInputMessage(true);
-                $validation->setShowErrorMessage(true);
-                $validation->setShowDropDown(true);
-                $validation->setErrorTitle('Invalid Input');
-                $validation->setError('Please select from the dropdown');
-                $validation->setPromptTitle('Select Option');
-                $validation->setPrompt('Choose from available options');
-                $validation->setFormula1('"' . implode(',', $field->options) . '"');
-                
-                // Copy validation to more rows
-                for ($row = 4; $row <= 100; $row++) {
-                    $sheet->getCell($column . $row)->setDataValidation(clone $validation);
-                }
-            }
-        }
-
-        return [];
     }
 }

@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Illuminate\Support\Collection;
 
-class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize
 {
     protected $formTemplateId;
     protected $status;
@@ -119,28 +119,5 @@ class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping
         }
 
         return $baseData;
-    }
-
-    /**
-     * Apply styles to the worksheet
-     */
-    public function styles(Worksheet $sheet)
-    {
-        return [
-            1 => [
-                'font' => [
-                    'bold' => true,
-                    'size' => 12,
-                ],
-                'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '4472C4'],
-                ],
-                'font' => [
-                    'color' => ['rgb' => 'FFFFFF'],
-                    'bold' => true,
-                ],
-            ],
-        ];
     }
 }
