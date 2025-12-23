@@ -18,10 +18,6 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-
 Route::get('/status', function () {
     return response()->json(['status' => 'API is running']);
 });
@@ -52,10 +48,11 @@ Route::group([
     'prefix' => 'admin'
 ], function () {
     
-    // 📊 Dashboard
+    // Dashboard
     Route::get('/dashboard', [RoleController::class, 'dashboard'])->name('admin.dashboard');
+    Route::get('/stats', [RoleController::class, 'stats'])->name('admin.stats');
     
-    // 👥 User Management
+    // User Management
     Route::prefix('users')->group(function () {
         Route::get('/', [UserManagementController::class, 'index'])->name('admin.users.index');
         Route::post('/', [UserManagementController::class, 'store'])->name('admin.users.store');
@@ -72,7 +69,7 @@ Route::group([
         Route::delete('/{id}/permissions/{permission}', [UserManagementController::class, 'removePermission'])->name('admin.users.remove-permission');
     });
     
-    // 🎭 Role Management
+    // Role Management
     Route::prefix('roles')->group(function () {
         Route::get('/', [RoleController::class, 'index'])->name('admin.roles.index');
         Route::post('/', [RoleController::class, 'store'])->name('admin.roles.store');
@@ -85,14 +82,14 @@ Route::group([
         Route::delete('/{id}/permissions/{permission}', [RoleController::class, 'removePermission'])->name('admin.roles.remove-permission');
     });
     
-    // 🔐 Permission Management
+    // Permission Management
     Route::prefix('permissions')->group(function () {
         Route::get('/', [RoleController::class, 'permissions'])->name('admin.permissions.index');
         Route::post('/', [RoleController::class, 'createPermission'])->name('admin.permissions.store');
         Route::delete('/{id}', [RoleController::class, 'deletePermission'])->name('admin.permissions.destroy');
     });
     
-    // 👔 Employee Management (Admin only)
+    // Employee Management (Admin only)
     Route::prefix('employees')->group(function () {
         Route::get('/', [EmployeeController::class, 'index'])->name('admin.employees.index');
         Route::post('/', [EmployeeController::class, 'store'])->name('admin.employees.store');
@@ -101,9 +98,6 @@ Route::group([
         Route::delete('/{id}', [EmployeeController::class, 'destroy'])->name('admin.employees.destroy');
         Route::patch('/{id}/status', [EmployeeController::class, 'updateStatus'])->name('admin.employees.status');
     });
-    
-    // 📈 System Stats
-    Route::get('/stats', [RoleController::class, 'stats'])->name('admin.stats');
 });
 
 // HR ROUTES
@@ -117,7 +111,9 @@ Route::group([
     Route::put('/employees/{id}', [EmployeeController::class, 'update'])->name('hr.employees.update');
 });
 
-// EMPLOYEE ROUTES
+// ========================================
+// 👤 EMPLOYEE ROUTES
+// ========================================
 Route::group([
     'middleware' => ['api', 'auth:api'],
     'prefix' => 'employee'
