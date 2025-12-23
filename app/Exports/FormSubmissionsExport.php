@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Illuminate\Support\Collection;
 
-class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize
+class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
 {
     protected $formTemplateId;
     protected $status;
@@ -119,5 +119,55 @@ class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping
         }
 
         return $baseData;
+    }
+
+    /**
+     * Apply styles and validation to the worksheet
+     */
+    public function styles(Worksheet $sheet)
+    {
+        // Style the header row
+        $sheet->getStyle('1:1')->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'size' => 12,
+                'color' => ['rgb' => 'FFFFFF'],
+            ],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '4472C4'],
+            ],
+        ]);
+
+        // Add dropdown validation for fields with options (if specific template)
+        if ($this->formTemplate) {
+            $baseColumns = 11; // Number of base columns before dynamic fields
+            
+            foreach ($this->formTemplate->fields->sortBy('order') as $index => $field) {
+                $columnIndex = $baseColumns + $index + 1;
+                $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex);
+                
+                // Add dropdown validation for dropdown/radio fields
+                if (in_array($field->field_type, ['dropdown', 'radio']) && !empty($field->options)) {
+                    // Apply validation from row 2 to 1000
+                    for ($row = 2; $row <= 1000; $row++) {
+                        $validation = $sheet->getCell($column . $row)->getDataValidation();
+                        $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
+                        $validation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_INFORMATION);
+                        $validation->setAllowBlank(true);
+                        $validation->setShowInputMessage(true);
+                        $validation->setShowErrorMessage(true);
+                        $validation->setShowDropDown(true);
+                        $validation->setErrorTitle('Invalid Input');
+                        $validation->setError('Please select from the dropdown');
+                        $validation->setPromptTitle('Select Option');
+                        $validation->setPrompt('Choose from available options');
+                        $validation->setFormula1('"' . implode(',', $field->options) . '"');
+                    }
+                }
+            }
+        }
+
+        return [];
     }
 }

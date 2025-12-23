@@ -216,7 +216,8 @@ class ExcelController extends Controller
             if ($formTemplate->status !== FormTemplate::STATUS_ACTIVE) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot import to inactive form template'
+                    'message' => 'Cannot import to inactive form template',
+                    'status' => $formTemplate->status,
                 ], 422);
             }
 
