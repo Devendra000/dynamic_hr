@@ -4,15 +4,16 @@ namespace App\Exports;
 
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Illuminate\Support\Collection;
 
-class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class FormSubmissionsExport implements FromQuery, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithChunkReading
 {
     protected $formTemplateId;
     protected $status;
@@ -35,11 +36,12 @@ class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping
     }
 
     /**
-     * Get the submissions collection
+     * Return a query for chunk processing (memory efficient)
      */
-    public function collection()
+    public function query()
     {
-        $query = FormSubmission::with(['template.fields', 'user', 'responses.field', 'reviewer'])
+        return FormSubmission::query()
+            ->with(['template.fields', 'user', 'responses.field', 'reviewer'])
             ->when($this->formTemplateId, function ($q) {
                 return $q->where('form_template_id', $this->formTemplateId);
             })
@@ -55,10 +57,15 @@ class FormSubmissionsExport implements FromCollection, WithHeadings, WithMapping
             ->when($this->dateTo, function ($q) {
                 return $q->whereDate('created_at', '<=', $this->dateTo);
             })
-            ->latest()
-            ->get();
+            ->latest();
+    }
 
-        return $query;
+    /**
+     * Set chunk size for reading (processes 1000 rows at a time)
+     */
+    public function chunkSize(): int
+    {
+        return 1000;
     }
 
     /**
