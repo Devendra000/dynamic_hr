@@ -120,9 +120,14 @@ class AuthenticationController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function logout(): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
         try {
+            // Check if user is authenticated first
+            if (!auth()->check()) {
+                throw AuthenticationException::tokenMissing();
+            }
+
             $this->authService->logout();
             return $this->successResponse(null, 'Successfully logged out');
         } catch (AuthenticationException $e) {
@@ -135,7 +140,6 @@ class AuthenticationController extends Controller
             );
         }
     }
-
     /**
      * Refresh JWT token.
      *
@@ -144,6 +148,11 @@ class AuthenticationController extends Controller
     public function refresh(Request $request): JsonResponse
     {
         try {
+            // Check if user is authenticated first
+            if (!auth()->check()) {
+                throw AuthenticationException::tokenMissing();
+            }
+
             $token = $this->authService->refreshToken();
             return $this->respondWithToken($token);
         } catch (AuthenticationException $e) {
