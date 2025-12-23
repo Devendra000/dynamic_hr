@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\FormSubmissionAdminController;
+use App\Http\Controllers\Admin\EmployeeController;
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\UserManagementController;
@@ -125,6 +126,22 @@ Route::group([
     // Form Templates - Excel Template Download
     Route::get('/form-templates/{id}/excel-template', [ExcelController::class, 'downloadTemplate'])->name('admin.form-templates.excel-template');
 
+});
+
+// HR ROUTES (Employee Management)
+Route::group([
+    'middleware' => ['api', 'auth:api', 'role:admin|hr'],
+    'prefix' => 'hr'
+], function () {
+    Route::prefix('employees')->group(function () {
+        Route::get('/', [EmployeeController::class, 'index'])->name('hr.employees.index');
+        Route::post('/', [EmployeeController::class, 'store'])->name('hr.employees.store');
+        Route::get('/stats', [EmployeeController::class, 'stats'])->name('hr.employees.stats');
+        Route::get('/{id}', [EmployeeController::class, 'show'])->name('hr.employees.show');
+        Route::put('/{id}', [EmployeeController::class, 'update'])->name('hr.employees.update');
+        Route::delete('/{id}', [EmployeeController::class, 'destroy'])->name('hr.employees.destroy');
+        Route::patch('/{id}/status', [EmployeeController::class, 'updateStatus'])->name('hr.employees.update-status');
+    });
 });
 
 // EMPLOYEE ROUTES (Self-service)
