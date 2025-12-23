@@ -1718,6 +1718,215 @@
                 ]
             }
         },
+        "/admin/submissions/export": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Export submissions to Excel",
+                "description": "Download all submissions or filtered submissions as Excel file (Admin/HR only)",
+                "operationId": "da39a30d30f3b807b1d576643780fb66",
+                "parameters": [
+                    {
+                        "name": "form_template_id",
+                        "in": "query",
+                        "description": "Filter by template ID",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "draft",
+                                "submitted",
+                                "approved",
+                                "rejected"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "user_id",
+                        "in": "query",
+                        "description": "Filter by user ID",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "date_from",
+                        "in": "query",
+                        "description": "Filter from date (YYYY-MM-DD)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "date_to",
+                        "in": "query",
+                        "description": "Filter to date (YYYY-MM-DD)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel file download",
+                        "content": {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/form-templates/{id}/excel-template": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Download Excel template",
+                "description": "Download a sample Excel template for importing submissions (Admin/HR only)",
+                "operationId": "eae3d4b3c4dff3aa21dbc71e55d71534",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Form template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel template download",
+                        "content": {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+                        }
+                    },
+                    "404": {
+                        "description": "Form template not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/import": {
+            "post": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Import submissions from Excel",
+                "description": "Upload and import form submissions from Excel file (Admin/HR only)",
+                "operationId": "fb2d8151bb47f783c797d8c66e7f2414",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file",
+                                    "form_template_id"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "description": "Excel file (.xlsx or .xls)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "form_template_id": {
+                                        "description": "Form template ID",
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Import completed with statistics"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/import/validate": {
+            "post": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Validate Excel import",
+                "description": "Preview and validate Excel file before actual import (Admin/HR only)",
+                "operationId": "5ee2e782ff87dbb673873284a1016ea6",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file",
+                                    "form_template_id"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "description": "Excel file (.xlsx or .xls)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "form_template_id": {
+                                        "description": "Form template ID",
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Validation results with preview"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/admin/form-templates": {
             "get": {
                 "tags": [
@@ -2746,6 +2955,10 @@
         {
             "name": "Form Submissions",
             "description": "Employee form submissions and admin review workflows"
+        },
+        {
+            "name": "Excel Import/Export",
+            "description": "Excel import/export for bulk submission management"
         },
         {
             "name": "Employee Management",

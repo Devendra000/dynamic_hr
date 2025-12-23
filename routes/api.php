@@ -112,7 +112,15 @@ Route::group([
         Route::get('/{id}', [FormSubmissionAdminController::class, 'show'])->name('admin.submissions.show');
         Route::put('/{id}/status', [FormSubmissionAdminController::class, 'updateStatus'])->name('admin.submissions.update-status');
         Route::post('/{id}/comments', [FormSubmissionAdminController::class, 'addComment'])->name('admin.submissions.add-comment');
+        
+        // Excel Export/Import
+        Route::get('/export', [App\Http\Controllers\ExcelController::class, 'exportSubmissions'])->name('admin.submissions.export');
+        Route::post('/import', [App\Http\Controllers\ExcelController::class, 'importSubmissions'])->name('admin.submissions.import');
+        Route::post('/import/validate', [App\Http\Controllers\ExcelController::class, 'validateImport'])->name('admin.submissions.import-validate');
     });
+    
+    // Form Templates - Excel Template Download
+    Route::get('/form-templates/{id}/excel-template', [App\Http\Controllers\ExcelController::class, 'downloadTemplate'])->name('admin.form-templates.excel-template');
 
 });
 

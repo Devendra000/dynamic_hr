@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\FormSubmissionRequest;
+use App\Http\Requests\UpdateFormSubmissionRequest;
 use App\Models\FormTemplate;
 use App\Models\FormSubmission;
 use App\Models\SubmissionResponse;
@@ -155,25 +157,11 @@ class FormSubmissionController extends Controller
      *     )
      * )
      */
-    public function store(Request $request): JsonResponse
+    public function store(FormSubmissionRequest $request): JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'form_template_id' => 'required|exists:form_templates,id',
-                'status' => 'sometimes|in:draft,submitted',
-                'responses' => 'required|array',
-                'responses.*' => 'nullable|string',
-            ]);
-
-            // Check if template is active
-            $template = FormTemplate::with('fields')->findOrFail($validated['form_template_id']);
-            
-            if ($template->status !== FormTemplate::STATUS_ACTIVE) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'This form is not currently active'
-                ], 422);
-            }
+            $validated = $request->validated();
+            $template = $request->getFormTemplate();
 
             DB::beginTransaction();
 
@@ -186,25 +174,6 @@ class FormSubmissionController extends Controller
 
             // Save responses
             foreach ($validated['responses'] as $fieldId => $value) {
-                // Validate field exists in template
-                $field = $template->fields()->find($fieldId);
-                if (!$field) {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Invalid field ID: {$fieldId}"
-                    ], 422);
-                }
-
-                // Check required fields
-                if ($field->is_required && empty($value) && ($validated['status'] ?? 'draft') === 'submitted') {
-                    DB::rollBack();
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Field '{$field->label}' is required"
-                    ], 422);
-                }
-
                 SubmissionResponse::create([
                     'form_submission_id' => $submission->id,
                     'form_field_id' => $fieldId,
@@ -226,13 +195,6 @@ class FormSubmissionController extends Controller
                 'data' => $submission->load(['template', 'responses.field'])
             ], 201);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to create submission', [
@@ -344,10 +306,17 @@ class FormSubmissionController extends Controller
      *     @OA\Response(response=422, description="Cannot update submitted forms")
      * )
      */
-    public function update(Request $request, string $id): JsonResponse
+    public function update(UpdateFormSubmissionRequest $request, string $id): JsonResponse
     {
         try {
-            $submission = FormSubmission::with('template.fields')->findOrFail($id);
+            $submission = $request->getSubmission();
+
+            if (!$submission) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Submission not found'
+                ], 404);
+            }
 
             // Check ownership
             if ($submission->user_id !== auth()->id()) {
@@ -365,11 +334,7 @@ class FormSubmissionController extends Controller
                 ], 422);
             }
 
-            $validated = $request->validate([
-                'status' => 'sometimes|in:draft,submitted',
-                'responses' => 'sometimes|array',
-                'responses.*' => 'nullable|string',
-            ]);
+            $validated = $request->validated();
 
             DB::beginTransaction();
 
@@ -384,11 +349,6 @@ class FormSubmissionController extends Controller
             // Update responses
             if (isset($validated['responses'])) {
                 foreach ($validated['responses'] as $fieldId => $value) {
-                    $field = $submission->template->fields()->find($fieldId);
-                    if (!$field) {
-                        continue;
-                    }
-
                     $response = SubmissionResponse::where('form_submission_id', $submission->id)
                         ->where('form_field_id', $fieldId)
                         ->first();
@@ -415,22 +375,9 @@ class FormSubmissionController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Submission updated successfully',
-                'data' => $submission->load(['template', 'responses.field'])
+                'data' => $submission->fresh()->load(['template', 'responses.field'])
             ]);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Submission not found'
-            ], 404);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to update submission', [

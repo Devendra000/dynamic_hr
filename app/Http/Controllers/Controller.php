@@ -63,6 +63,11 @@ use Illuminate\Routing\Controller as BaseController;
  *     name="Form Submissions",
  *     description="Employee form submissions and admin review workflows"
  * )
+ *
+ * @OA\Tag(
+ *     name="Excel Import/Export",
+ *     description="Excel import/export for bulk submission management"
+ * )
  */
 class Controller extends BaseController
 {
