@@ -17,8 +17,7 @@ JWT Auth setup:
         ```php artisan jwt:secret```
 
 - guard setup to use jwt
-    need to add jwt in auth guard (config/auth.php)
-        setup guard for api:   
+    - need to add jwt in auth guard (config/auth.php): setup guard for api:   
         'guards' => [
                     'web' => [
                         'driver' => 'session',
@@ -30,3 +29,10 @@ JWT Auth setup:
                         'hash' => false,
                     ]
                 ],
+    - implement JWTAuth's JWTSubject in User model
+    - create controller for authentication ```php artisan make:controller AuthenticationController```
+    - Create JWTMiddleware and RateLimitAuth middleawre for authentication
+    - create trait for AuthenticatesWithJWT and use it for uniform response
+    - create specific exception ```php artisan make:exception AuthenticationException``` for exception handling for JWT
+    - Use FormRequest validation for proper form data validation
+
