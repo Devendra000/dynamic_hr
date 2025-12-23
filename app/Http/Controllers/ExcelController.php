@@ -72,6 +72,17 @@ class ExcelController extends Controller
         try {
             $filters = $request->only(['form_template_id', 'status', 'user_id', 'date_from', 'date_to']);
             
+            // Validate form_template_id if provided
+            if (!empty($filters['form_template_id'])) {
+                $template = FormTemplate::find($filters['form_template_id']);
+                if (!$template) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Form template not found',
+                    ], 404);
+                }
+            }
+            
             $fileName = 'form_submissions_' . date('Y-m-d_His') . '.xlsx';
 
             Log::info('Exporting form submissions', [

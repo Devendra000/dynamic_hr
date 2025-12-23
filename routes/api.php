@@ -4,6 +4,8 @@ use App\Http\Controllers\Admin\FormSubmissionAdminController;
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Employee\FormSubmissionController;
+use App\Http\Controllers\ExcelController;
 use App\Http\Controllers\FormTemplateController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -109,18 +111,19 @@ Route::group([
     Route::prefix('submissions')->group(function () {
         Route::get('/', [FormSubmissionAdminController::class, 'index'])->name('admin.submissions.index');
         Route::get('/stats', [FormSubmissionAdminController::class, 'stats'])->name('admin.submissions.stats');
+        
+        // Excel Export/Import
+        Route::get('/export', [ExcelController::class, 'exportSubmissions'])->name('admin.submissions.export');
+        Route::post('/import', [ExcelController::class, 'importSubmissions'])->name('admin.submissions.import');
+        Route::post('/import/validate', [ExcelController::class, 'validateImport'])->name('admin.submissions.import-validate');
+        
         Route::get('/{id}', [FormSubmissionAdminController::class, 'show'])->name('admin.submissions.show');
         Route::put('/{id}/status', [FormSubmissionAdminController::class, 'updateStatus'])->name('admin.submissions.update-status');
         Route::post('/{id}/comments', [FormSubmissionAdminController::class, 'addComment'])->name('admin.submissions.add-comment');
-        
-        // Excel Export/Import
-        Route::get('/export', [App\Http\Controllers\ExcelController::class, 'exportSubmissions'])->name('admin.submissions.export');
-        Route::post('/import', [App\Http\Controllers\ExcelController::class, 'importSubmissions'])->name('admin.submissions.import');
-        Route::post('/import/validate', [App\Http\Controllers\ExcelController::class, 'validateImport'])->name('admin.submissions.import-validate');
     });
     
     // Form Templates - Excel Template Download
-    Route::get('/form-templates/{id}/excel-template', [App\Http\Controllers\ExcelController::class, 'downloadTemplate'])->name('admin.form-templates.excel-template');
+    Route::get('/form-templates/{id}/excel-template', [ExcelController::class, 'downloadTemplate'])->name('admin.form-templates.excel-template');
 
 });
 
@@ -133,14 +136,14 @@ Route::group([
     Route::get('/profile', [AuthenticationController::class, 'me'])->name('employee.profile');
     
     // Available Forms
-    Route::get('/forms', [App\Http\Controllers\Employee\FormSubmissionController::class, 'availableForms'])->name('employee.forms');
+    Route::get('/forms', [FormSubmissionController::class, 'availableForms'])->name('employee.forms');
     
     // Form Submissions
     Route::prefix('submissions')->group(function () {
-        Route::get('/', [App\Http\Controllers\Employee\FormSubmissionController::class, 'index'])->name('employee.submissions.index');
-        Route::post('/', [App\Http\Controllers\Employee\FormSubmissionController::class, 'store'])->name('employee.submissions.store');
-        Route::get('/{id}', [App\Http\Controllers\Employee\FormSubmissionController::class, 'show'])->name('employee.submissions.show');
-        Route::put('/{id}', [App\Http\Controllers\Employee\FormSubmissionController::class, 'update'])->name('employee.submissions.update');
-        Route::delete('/{id}', [App\Http\Controllers\Employee\FormSubmissionController::class, 'destroy'])->name('employee.submissions.destroy');
+        Route::get('/', [FormSubmissionController::class, 'index'])->name('employee.submissions.index');
+        Route::post('/', [FormSubmissionController::class, 'store'])->name('employee.submissions.store');
+        Route::get('/{id}', [FormSubmissionController::class, 'show'])->name('employee.submissions.show');
+        Route::put('/{id}', [FormSubmissionController::class, 'update'])->name('employee.submissions.update');
+        Route::delete('/{id}', [FormSubmissionController::class, 'destroy'])->name('employee.submissions.destroy');
     });
 });

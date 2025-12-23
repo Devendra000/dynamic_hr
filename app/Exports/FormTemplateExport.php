@@ -110,14 +110,9 @@ class FormTemplateExport implements FromArray, WithHeadings, WithStyles, ShouldA
             ],
         ]);
 
-        // Add data validation comments for required fields
+        // Add dropdown validation for dropdown/radio fields
         foreach ($this->formTemplate->fields->sortBy('order') as $index => $field) {
             $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($index + 1);
-            
-            if ($field->is_required) {
-                $sheet->getCell($column . '1')->getComment()
-                    ->getText()->createTextRun('REQUIRED FIELD');
-            }
             
             // Add dropdown validation for dropdown/radio fields
             if (in_array($field->field_type, ['dropdown', 'radio']) && !empty($field->options)) {
