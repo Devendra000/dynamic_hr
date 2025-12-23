@@ -53,6 +53,11 @@ use Illuminate\Routing\Controller as BaseController;
  *     name="Permission Management",
  *     description="Permission CRUD operations"
  * )
+ *
+ * @OA\Tag(
+ *     name="Form Template Management",
+ *     description="Dynamic form template creation and field management"
+ * )
  */
 class Controller extends BaseController
 {

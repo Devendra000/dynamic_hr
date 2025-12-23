@@ -1232,6 +1232,551 @@
                 ]
             }
         },
+        "/admin/form-templates": {
+            "get": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "List all form templates",
+                "description": "Get paginated list of form templates with their fields",
+                "operationId": "2e2de77c5a5e0c8d154ea2755b463786",
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Items per page",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "active",
+                                "inactive",
+                                "draft"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Search by title",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Templates retrieved successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Create new form template",
+                "description": "Create a new form template with optional fields",
+                "operationId": "7b25304e55ed9c838074526c925ae7ed",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "title"
+                                ],
+                                "properties": {
+                                    "title": {
+                                        "type": "string",
+                                        "example": "Employee Feedback Form"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Annual employee feedback survey"
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "active",
+                                            "inactive",
+                                            "draft"
+                                        ],
+                                        "example": "draft"
+                                    },
+                                    "fields": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "field_type",
+                                                "label"
+                                            ],
+                                            "properties": {
+                                                "field_type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "text",
+                                                        "textarea",
+                                                        "number",
+                                                        "email",
+                                                        "date",
+                                                        "dropdown",
+                                                        "checkbox",
+                                                        "radio",
+                                                        "file"
+                                                    ],
+                                                    "example": "text"
+                                                },
+                                                "label": {
+                                                    "type": "string",
+                                                    "example": "Your Name"
+                                                },
+                                                "placeholder": {
+                                                    "type": "string",
+                                                    "example": "Enter your name"
+                                                },
+                                                "options": {
+                                                    "description": "Required for dropdown, checkbox, radio fields",
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "example": [
+                                                        "Option 1",
+                                                        "Option 2",
+                                                        "Option 3"
+                                                    ]
+                                                },
+                                                "validation_rules": {
+                                                    "type": "object",
+                                                    "example": {
+                                                        "min": 3,
+                                                        "max": 100
+                                                    }
+                                                },
+                                                "is_required": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "order": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Template created successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/form-templates/{id}": {
+            "get": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Get form template details",
+                "description": "Get detailed information about a specific form template with all fields",
+                "operationId": "f4ef7b1c5136db9efa94ffd8cd1414e4",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Template retrieved successfully"
+                    },
+                    "404": {
+                        "description": "Template not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Update form template",
+                "description": "Update form template basic information (title, description, status)",
+                "operationId": "b46cb389aae122f46f107c519b3f2901",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "title": {
+                                        "type": "string",
+                                        "example": "Updated Form Title"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "Updated description"
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "active",
+                                            "inactive",
+                                            "draft"
+                                        ]
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Template updated successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Delete form template",
+                "description": "Soft delete a form template (cannot delete if it has submissions)",
+                "operationId": "edb1926312f529990171f27fb6019bb7",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Template deleted successfully"
+                    },
+                    "422": {
+                        "description": "Template has submissions"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/form-templates/{id}/duplicate": {
+            "post": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Duplicate form template",
+                "description": "Create a copy of an existing form template with all its fields",
+                "operationId": "a29ce31fe559bffc8f83ee54a6a20416",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Template ID to duplicate",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Template duplicated successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/form-templates/{id}/fields": {
+            "post": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Add field to template",
+                "description": "Add a new field to an existing form template",
+                "operationId": "46321194c5c0c1682777e7ca2bb6696d",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "field_type",
+                                    "label"
+                                ],
+                                "properties": {
+                                    "field_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "text",
+                                            "textarea",
+                                            "number",
+                                            "email",
+                                            "date",
+                                            "dropdown",
+                                            "checkbox",
+                                            "radio",
+                                            "file"
+                                        ],
+                                        "example": "email"
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "example": "Email Address"
+                                    },
+                                    "placeholder": {
+                                        "type": "string",
+                                        "example": "Enter your email"
+                                    },
+                                    "options": {
+                                        "description": "Required for dropdown, checkbox, radio fields",
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "example": [
+                                            "Yes",
+                                            "No",
+                                            "Maybe"
+                                        ]
+                                    },
+                                    "validation_rules": {
+                                        "description": "Custom validation rules",
+                                        "type": "object",
+                                        "example": {
+                                            "email": true,
+                                            "max": 255
+                                        }
+                                    },
+                                    "is_required": {
+                                        "type": "boolean",
+                                        "example": true
+                                    },
+                                    "order": {
+                                        "type": "integer",
+                                        "example": 2
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Field added successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/form-templates/{id}/fields/{fieldId}": {
+            "put": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Update template field",
+                "description": "Update an existing field in a form template",
+                "operationId": "2d6c0d4f391cccacba94b54db20578bd",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "fieldId",
+                        "in": "path",
+                        "description": "Field ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "field_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "text",
+                                            "textarea",
+                                            "number",
+                                            "email",
+                                            "date",
+                                            "dropdown",
+                                            "checkbox",
+                                            "radio",
+                                            "file"
+                                        ]
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "example": "Updated Label"
+                                    },
+                                    "placeholder": {
+                                        "type": "string"
+                                    },
+                                    "options": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "validation_rules": {
+                                        "type": "object"
+                                    },
+                                    "is_required": {
+                                        "type": "boolean"
+                                    },
+                                    "order": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Field updated successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Remove field from template",
+                "description": "Delete a field from a form template",
+                "operationId": "fbda17698293e5e09bc7b691210452bc",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "fieldId",
+                        "in": "path",
+                        "description": "Field ID",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Field removed successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/admin/roles": {
             "get": {
                 "tags": [
@@ -1709,12 +2254,16 @@
             "description": "Permission CRUD operations"
         },
         {
+            "name": "Form Template Management",
+            "description": "Dynamic form template creation and field management"
+        },
+        {
             "name": "Employee Management",
-            "description": "Employee profile and status management"
+            "description": "Employee Management"
         },
         {
             "name": "Dashboard",
-            "description": "Dashboard statistics and analytics"
+            "description": "Dashboard"
         }
     ]
 }

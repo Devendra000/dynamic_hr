@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthenticationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\FormTemplateController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -86,6 +87,21 @@ Route::group([
         Route::get('/', [RoleController::class, 'permissions'])->name('admin.permissions.index');
         Route::post('/', [RoleController::class, 'createPermission'])->name('admin.permissions.store');
         Route::delete('/{id}', [RoleController::class, 'deletePermission'])->name('admin.permissions.destroy');
+    });
+    
+    // Form Template Management
+    Route::prefix('form-templates')->group(function () {
+        Route::get('/', [FormTemplateController::class, 'index'])->name('admin.form-templates.index');
+        Route::post('/', [FormTemplateController::class, 'store'])->name('admin.form-templates.store');
+        Route::get('/{id}', [FormTemplateController::class, 'show'])->name('admin.form-templates.show');
+        Route::put('/{id}', [FormTemplateController::class, 'update'])->name('admin.form-templates.update');
+        Route::delete('/{id}', [FormTemplateController::class, 'destroy'])->name('admin.form-templates.destroy');
+        Route::post('/{id}/duplicate', [FormTemplateController::class, 'duplicate'])->name('admin.form-templates.duplicate');
+        
+        // Field management
+        Route::post('/{id}/fields', [FormTemplateController::class, 'addField'])->name('admin.form-templates.add-field');
+        Route::put('/{id}/fields/{fieldId}', [FormTemplateController::class, 'updateField'])->name('admin.form-templates.update-field');
+        Route::delete('/{id}/fields/{fieldId}', [FormTemplateController::class, 'removeField'])->name('admin.form-templates.remove-field');
     });
 });
 
