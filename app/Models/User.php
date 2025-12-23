@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -24,6 +23,13 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'password',
         'email_verified_at',
+        'phone',
+        'department',
+        'position',
+        'employee_id',
+        'hire_date',
+        'salary',
+        'status',
     ];
 
     /**
@@ -43,6 +49,8 @@ class User extends Authenticatable implements JWTSubject
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'hire_date' => 'date',
+        'salary' => 'decimal:2',
         'password' => 'hashed',
     ];
 
@@ -55,7 +63,7 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->getKey();
     }
- 
+
     /**
      * Return a key value array, containing any custom claims to be added to the JWT.
      *
@@ -67,6 +75,7 @@ class User extends Authenticatable implements JWTSubject
             'user_id' => $this->id,
             'email' => $this->email,
             'name' => $this->name,
+            'roles' => $this->getRoleNames(),
         ];
     }
 }
