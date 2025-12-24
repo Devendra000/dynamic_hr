@@ -147,3 +147,32 @@ Import: it took
 Export: it took
   - 9.37 seconds to export 10000 data.
   - 1.2 minutes to export 110000 data.
+
+curl -X 'POST' \
+  'http://localhost:8000/api/admin/submissions/import' \
+  -H 'accept: */*' \
+  -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwMDAvYXBpL2F1dGgvbG9naW4iLCJpYXQiOjE3NjY1NjY0MDgsImV4cCI6MTc2NjU3MDAwOCwibmJmIjoxNzY2NTY2NDA4LCJqdGkiOiJlTXRHNHZuN2U0TEljWlRxIiwic3ViIjoiMSIsInBydiI6IjIzYmQ1Yzg5NDlmNjAwYWRiMzllNzAxYzQwMDg3MmRiN2E1OTc2ZjciLCJ1c2VyX2lkIjoxLCJlbWFpbCI6ImFkbWluQGR5bmFtaWNoci5jb20iLCJuYW1lIjoiU3lzdGVtIEFkbWluaXN0cmF0b3IiLCJyb2xlcyI6WyJhZG1pbiJdfQ.19nMtBccQnq1jF2pltyVreDKQlylMJfr8W7poxO7j1Q' \
+  -H 'Content-Type: multipart/form-data' \
+  -H 'X-CSRF-TOKEN: ' \
+  -F 'file=@people10k.csv;type=text/csv' \
+  -F 'form_template_id=2'
+  
+  {
+    "success": true,
+    "message": "Import completed",
+    "data": {
+      "imported": 8295,
+      "skipped": 1705,
+      "total": 10000,
+      "errors": [
+        {
+          "row": 3,
+          "error": "'Your age' must be at least 18 at row 3. Got: 9"
+        },
+        {
+          "row": 8,
+          "error": "'Your age' must be at least 18 at row 8. Got: 2"
+        }, ... 
+      ]
+    }    
+}

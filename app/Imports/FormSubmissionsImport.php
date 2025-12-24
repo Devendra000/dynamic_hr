@@ -166,7 +166,7 @@ class FormSubmissionsImport implements ToCollection, WithHeadingRow, WithValidat
     }
 
     /**
-     * Validate field value based on field type
+     * Validate field value based on field type and validation rules
      */
     protected function validateFieldValue($field, $value, $rowNumber)
     {
@@ -197,6 +197,70 @@ class FormSubmissionsImport implements ToCollection, WithHeadingRow, WithValidat
                     throw new \Exception("Invalid option '{$value}' for '{$field->label}' at row {$rowNumber}. Allowed: " . implode(', ', $field->options));
                 }
                 break;
+        }
+
+        // Validate custom validation rules
+        if (!empty($field->validation_rules)) {
+            $this->applyValidationRules($field, $value, $rowNumber);
+        }
+    }
+
+    /**
+     * Apply validation rules from field configuration
+     */
+    protected function applyValidationRules($field, $value, $rowNumber)
+    {
+        $rules = is_string($field->validation_rules) 
+            ? json_decode($field->validation_rules, true) 
+            : $field->validation_rules;
+
+        if (!is_array($rules)) {
+            return;
+        }
+
+        // Min validation (for numbers, text length, etc.)
+        if (isset($rules['min'])) {
+            $min = $rules['min'];
+            if ($field->field_type === 'number') {
+                if ((float)$value < (float)$min) {
+                    throw new \Exception("'{$field->label}' must be at least {$min} at row {$rowNumber}. Got: {$value}");
+                }
+            } elseif (in_array($field->field_type, ['text', 'textarea'])) {
+                if (strlen($value) < (int)$min) {
+                    throw new \Exception("'{$field->label}' must be at least {$min} characters at row {$rowNumber}");
+                }
+            }
+        }
+
+        // Max validation (for numbers, text length, etc.)
+        if (isset($rules['max'])) {
+            $max = $rules['max'];
+            if ($field->field_type === 'number') {
+                if ((float)$value > (float)$max) {
+                    throw new \Exception("'{$field->label}' must not exceed {$max} at row {$rowNumber}. Got: {$value}");
+                }
+            } elseif (in_array($field->field_type, ['text', 'textarea'])) {
+                if (strlen($value) > (int)$max) {
+                    throw new \Exception("'{$field->label}' must not exceed {$max} characters at row {$rowNumber}");
+                }
+            }
+        }
+
+        // Regex validation
+        if (isset($rules['regex']) && !empty($rules['regex'])) {
+            if (!preg_match($rules['regex'], $value)) {
+                throw new \Exception("'{$field->label}' format is invalid at row {$rowNumber}");
+            }
+        }
+
+        // Min length validation (alternative key)
+        if (isset($rules['min_length']) && strlen($value) < (int)$rules['min_length']) {
+            throw new \Exception("'{$field->label}' must be at least {$rules['min_length']} characters at row {$rowNumber}");
+        }
+
+        // Max length validation (alternative key)
+        if (isset($rules['max_length']) && strlen($value) > (int)$rules['max_length']) {
+            throw new \Exception("'{$field->label}' must not exceed {$rules['max_length']} characters at row {$rowNumber}");
         }
     }
 
