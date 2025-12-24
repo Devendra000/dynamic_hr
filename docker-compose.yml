@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: dynamic_hr_user
       POSTGRES_PASSWORD: password
     ports:
-      - "5432:5432"
+      - "8002:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
