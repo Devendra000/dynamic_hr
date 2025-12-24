@@ -242,9 +242,50 @@ class ExcelController extends Controller
         ini_set('max_execution_time', '600');
         
         try {
+            // Check if file was uploaded
+            if (!$request->hasFile('file')) {
+                return $this->validationErrorResponse(
+                    'Validation failed',
+                    ['file' => ['No file was uploaded. Please select a file to import.']]
+                );
+            }
+
+            // Check if file upload was successful
+            $uploadedFile = $request->file('file');
+            if (!$uploadedFile->isValid()) {
+                $error = $uploadedFile->getError();
+                $maxSize = ini_get('upload_max_filesize');
+                $postMaxSize = ini_get('post_max_size');
+                
+                $errorMessages = [
+                    UPLOAD_ERR_INI_SIZE => "The file size exceeds the server's maximum upload size of {$maxSize}.",
+                    UPLOAD_ERR_FORM_SIZE => "The file size exceeds the maximum allowed size of 50MB.",
+                    UPLOAD_ERR_PARTIAL => "The file was only partially uploaded. Please try again.",
+                    UPLOAD_ERR_NO_FILE => "No file was uploaded.",
+                    UPLOAD_ERR_NO_TMP_DIR => "Server error: Missing temporary upload folder.",
+                    UPLOAD_ERR_CANT_WRITE => "Server error: Failed to write file to disk.",
+                    UPLOAD_ERR_EXTENSION => "Server error: File upload was stopped by a PHP extension.",
+                ];
+                
+                $errorMessage = $errorMessages[$error] ?? 'The file failed to upload. Please try again.';
+                
+                return $this->validationErrorResponse(
+                    'File upload failed',
+                    ['file' => [$errorMessage . " (Server upload_max_filesize: {$maxSize}, post_max_size: {$postMaxSize})"]]
+                );
+            }
+
             $validated = $request->validate([
                 'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,text/comma-separated-values,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|max:51200',
                 'form_template_id' => 'required|exists:form_templates,id',
+            ], [
+                'file.required' => 'Please upload a file to import.',
+                'file.file' => 'The uploaded file is invalid.',
+                'file.mimes' => 'The file must be an Excel file (.xlsx, .xls) or CSV file (.csv).',
+                'file.mimetypes' => 'Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed.',
+                'file.max' => 'The file size exceeds the maximum allowed limit of 50MB. Your file is too large.',
+                'form_template_id.required' => 'Form template ID is required.',
+                'form_template_id.exists' => 'The selected form template does not exist.',
             ]);
 
             $formTemplate = FormTemplate::findOrFail($validated['form_template_id']);
@@ -332,9 +373,50 @@ class ExcelController extends Controller
     public function validateImport(Request $request): JsonResponse
     {
         try {
+            // Check if file was uploaded
+            if (!$request->hasFile('file')) {
+                return $this->validationErrorResponse(
+                    'Validation failed',
+                    ['file' => ['No file was uploaded. Please select a file to validate.']]
+                );
+            }
+
+            // Check if file upload was successful
+            $uploadedFile = $request->file('file');
+            if (!$uploadedFile->isValid()) {
+                $error = $uploadedFile->getError();
+                $maxSize = ini_get('upload_max_filesize');
+                $postMaxSize = ini_get('post_max_size');
+                
+                $errorMessages = [
+                    UPLOAD_ERR_INI_SIZE => "The file size exceeds the server's maximum upload size of {$maxSize}.",
+                    UPLOAD_ERR_FORM_SIZE => "The file size exceeds the maximum allowed size of 50MB.",
+                    UPLOAD_ERR_PARTIAL => "The file was only partially uploaded. Please try again.",
+                    UPLOAD_ERR_NO_FILE => "No file was uploaded.",
+                    UPLOAD_ERR_NO_TMP_DIR => "Server error: Missing temporary upload folder.",
+                    UPLOAD_ERR_CANT_WRITE => "Server error: Failed to write file to disk.",
+                    UPLOAD_ERR_EXTENSION => "Server error: File upload was stopped by a PHP extension.",
+                ];
+                
+                $errorMessage = $errorMessages[$error] ?? 'The file failed to upload. Please try again.';
+                
+                return $this->validationErrorResponse(
+                    'File upload failed',
+                    ['file' => [$errorMessage . " (Server limits: upload_max_filesize={$maxSize}, post_max_size={$postMaxSize})"]]
+                );
+            }
+
             $validated = $request->validate([
                 'file' => 'required|file|mimes:xlsx,xls,csv,txt|mimetypes:text/csv,text/plain,application/csv,text/comma-separated-values,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|max:51200',
                 'form_template_id' => 'required|exists:form_templates,id',
+            ], [
+                'file.required' => 'Please upload a file to validate.',
+                'file.file' => 'The uploaded file is invalid.',
+                'file.mimes' => 'The file must be an Excel file (.xlsx, .xls) or CSV file (.csv).',
+                'file.mimetypes' => 'Invalid file type. Only Excel (.xlsx, .xls) and CSV files are allowed.',
+                'file.max' => 'The file size exceeds the maximum allowed limit of 50MB. Your file is too large.',
+                'form_template_id.required' => 'Form template ID is required.',
+                'form_template_id.exists' => 'The selected form template does not exist.',
             ]);
 
             $formTemplate = FormTemplate::with('fields')->findOrFail($validated['form_template_id']);

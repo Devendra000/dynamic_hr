@@ -598,10 +598,58 @@ php artisan config:clear
 - Test connection: `docker exec -it <container_name> psql -U dynamic_hr_user -d dynamic_hr_db`
 
 ### **Issue: Excel Import Failing**
-- Check file size (max 10MB)
-- Verify file format (xlsx, xls only)
+- Check file size (max 50MB)
+- Verify file format (xlsx, xls, csv only)
 - Ensure column headers match field labels (lowercase with underscores)
 - Check logs: `storage/logs/laravel.log`
+
+### **Issue: File Upload Fails with "The file failed to upload"**
+
+This is typically caused by PHP server configuration limits. Check and update your `php.ini`:
+
+```ini
+# Recommended settings for production
+upload_max_filesize = 50M
+post_max_size = 50M
+max_execution_time = 600
+memory_limit = 512M
+max_input_time = 600
+```
+
+**For Apache:**
+```bash
+sudo nano /etc/php/8.1/apache2/php.ini
+# Edit the values above
+sudo systemctl restart apache2
+```
+
+**For Nginx with PHP-FPM:**
+```bash
+sudo nano /etc/php/8.1/fpm/php.ini
+# Edit the values above
+sudo systemctl restart php8.1-fpm
+```
+
+**For Nginx, also update nginx.conf:**
+```nginx
+client_max_body_size 50M;
+```
+
+Then restart:
+```bash
+sudo systemctl restart nginx
+```
+
+**Verify current limits:**
+```bash
+php -i | grep -E "upload_max_filesize|post_max_size|max_execution_time"
+```
+
+**Error Messages:**
+- "File size exceeds server's maximum upload size" → Increase `upload_max_filesize`
+- "File size exceeds maximum allowed size" → Increase application limit (currently 50MB)
+- "File was only partially uploaded" → Increase `max_input_time` or check network
+- "Failed to write file to disk" → Check disk space and permissions on `/tmp`
 
 ### **Issue: Slow Queries**
 ```bash
