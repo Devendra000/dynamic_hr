@@ -26,6 +26,11 @@ use Illuminate\Routing\Controller as BaseController;
  *     description="Local Development Server"
  * )
  *
+ * @OA\Server(
+ *     url="https://hr.devendrahamal.com.np/api",
+ *     description="Production Server"
+ * )
+ *
  * @OA\SecurityScheme(
  *     securityScheme="bearerAuth",
  *     type="http",
