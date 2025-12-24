@@ -31,7 +31,7 @@ This system provides a complete solution for managing HR forms dynamically witho
 - Rate limiting on auth endpoints (5 requests/minute)
 - Middleware: `JwtMiddleware` validates tokens on protected routes
 - Custom exception handling via `AuthenticationException`
-- Endpoints: `/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/refresh`, `/api/auth/me`
+- Endpoints: `/api/auth/login`, `/api/auth/logout`, `/api/auth/refresh`, `/api/auth/me`
 
 **Key Files:**
 ```
