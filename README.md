@@ -234,6 +234,45 @@ php artisan l5-swagger:generate
 
 ---
 
+### **Requirement 7: Performance Monitoring & Debugging**
+**Need:** Monitor application performance, database queries, requests, and memory usage
+
+**Solution Used:** `laravel/telescope` v5.16
+
+**Implementation:**
+- Real-time monitoring dashboard at `/telescope`
+- Tracks requests with execution time and memory usage
+- Database query monitoring with slow query detection
+- Exception tracking and debugging
+- Job monitoring and queue inspection
+- Cache hit/miss statistics
+- Model events tracking
+- Mail preview and debugging
+
+**Key Features:**
+- **Requests Watcher:** Monitor HTTP request/response cycles, execution time, memory consumption
+- **Queries Watcher:** Track all database queries, execution time, and detect N+1 problems
+- **Exceptions Watcher:** Capture all exceptions with full stack traces
+- **Jobs Watcher:** Monitor queued jobs and their status
+- **Performance Metrics:** Memory usage, CPU time, and execution duration
+
+**Configuration:**
+```php
+// Only enabled in local environment by default
+'enabled' => env('TELESCOPE_ENABLED', true),
+
+// Admin-only access in production
+Gate::define('viewTelescope', function ($user) {
+    return $user->hasRole('admin');
+});
+```
+
+**Access:** `http://localhost:8000/telescope`
+
+**Authorization:** Only accessible by admin users in production
+
+---
+
 ## 🗄️ Database Architecture
 
 ### **Performance Optimizations:**
@@ -263,8 +302,7 @@ SubmissionResponse -> belongsTo(FormField)
 ### **Prerequisites:**
 - PHP 8.1+
 - Composer
-- PostgreSQL 13+
-- Node.js & NPM (for frontend assets)
+- Docker & Docker Compose (for PostgreSQL database)
 
 ### **Installation Steps:**
 
@@ -274,47 +312,68 @@ git clone <repository-url>
 cd dynamic_hr
 ```
 
-2. **Install dependencies**
+2. **Start PostgreSQL with Docker**
 ```bash
-composer install
-npm install
+docker-compose up -d
 ```
 
-3. **Environment setup**
+This will start PostgreSQL container with:
+- **Host:** 127.0.0.1
+- **Port:** 5432 (mapped to 8002 on host if port conflict)
+- **Database:** dynamic_hr_db
+- **Username:** dynamic_hr_user
+- **Password:** password
+
+3. **Install PHP dependencies**
+```bash
+composer install
+```
+
+4. **Environment setup**
 ```bash
 cp .env.example .env
 php artisan key:generate
 php artisan jwt:secret
 ```
 
-4. **Configure database** (Edit `.env`)
+4. **Environment setup**
+```bash
+cp .env.example .env
+php artisan key:generate
+php artisan jwt:secret
+```
+
+5. **Configure database** (`.env` is already configured for Docker)
+
+The default `.env.example` is pre-configured for Docker setup:
 ```env
 DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_DATABASE=dynamic_hr_db
 DB_USERNAME=dynamic_hr_user
-DB_PASSWORD=your_password_here
+DB_PASSWORD=password
 ```
 
-5. **Run migrations and seeders**
+6. **Run migrations and seeders**
 ```bash
 php artisan migrate:fresh --seed
 ```
 
-6. **Generate API documentation**
+7. **Generate API documentation**
 ```bash
 php artisan l5-swagger:generate
 ```
 
-7. **Start the server**
+8. **Start the server**
 ```bash
 php artisan serve
 ```
 
-8. **Access the application**
+9. **Access the application**
 - API: `http://localhost:8000/api`
 - Swagger Docs: `http://localhost:8000/api/documentation`
+- Telescope (Performance Monitor): `http://localhost:8000/telescope`
 
 ---
 
@@ -533,9 +592,10 @@ php artisan config:clear
 ```
 
 ### **Issue: Database Connection Failed**
-- Verify PostgreSQL is running
-- Check `.env` database credentials
-- Ensure database exists: `CREATE DATABASE dynamic_hr_db;`
+- Verify PostgreSQL Docker container is running: `docker ps`
+- Start the container if stopped: `docker-compose up -d`
+- Check `.env` database credentials match Docker configuration
+- Test connection: `docker exec -it <container_name> psql -U dynamic_hr_user -d dynamic_hr_db`
 
 ### **Issue: Excel Import Failing**
 - Check file size (max 10MB)
@@ -554,10 +614,12 @@ php artisan migrate:fresh --seed
 ## 📖 Additional Resources
 
 - **Swagger Documentation:** `/api/documentation`
+- **Telescope Performance Monitor:** `/telescope`
 - **Laravel Documentation:** https://laravel.com/docs
 - **JWT Auth:** https://github.com/PHP-Open-Source-Saver/jwt-auth
 - **Spatie Permissions:** https://spatie.be/docs/laravel-permission
 - **Laravel Excel:** https://docs.laravel-excel.com
+- **Laravel Telescope:** https://laravel.com/docs/10.x/telescope
 
 ---
 
