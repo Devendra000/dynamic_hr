@@ -23,6 +23,13 @@ class FormSubmissionAdminController extends Controller
      *     description="Get all form submissions with pagination and filters (Admin/HR only)",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(
+     *         name="page",
+     *         in="query",
+     *         description="Page number",
+     *         required=false,
+     *         @OA\Schema(type="integer", default=1)
+     *     ),
+     *     @OA\Parameter(
      *         name="per_page",
      *         in="query",
      *         description="Items per page",
@@ -60,6 +67,7 @@ class FormSubmissionAdminController extends Controller
     {
         try {
             $perPage = $request->get('per_page', 15);
+            $page = $request->get('page', 1);
             $status = $request->get('status');
             $formTemplateId = $request->get('form_template_id');
             $userId = $request->get('user_id');
@@ -75,7 +83,7 @@ class FormSubmissionAdminController extends Controller
                     return $query->where('user_id', $userId);
                 })
                 ->latest()
-                ->paginate($perPage);
+                ->paginate($perPage, ['*'], 'page', $page);
 
             return $this->successResponse('Submissions retrieved successfully', [
                 'submissions' => $submissions->items(),

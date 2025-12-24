@@ -482,6 +482,16 @@
                 "operationId": "368a709aa594b1c0ebc076efcea55bbe",
                 "parameters": [
                     {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Page number",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
+                    {
                         "name": "per_page",
                         "in": "query",
                         "description": "Items per page",
@@ -1499,6 +1509,16 @@
                 "description": "Get all my form submissions with pagination and filters",
                 "operationId": "8400424f5fdbb7f8026178faaa6cef9d",
                 "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Page number",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 1
+                        }
+                    },
                     {
                         "name": "per_page",
                         "in": "query",

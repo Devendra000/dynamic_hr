@@ -20,6 +20,7 @@ return new class extends Migration
             
             $table->index('form_submission_id');
             $table->index('form_field_id');
+            $table->index(['form_submission_id', 'form_field_id']);
         });
     }
 

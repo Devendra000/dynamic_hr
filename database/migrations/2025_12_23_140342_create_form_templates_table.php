@@ -22,6 +22,8 @@ return new class extends Migration
             
             $table->index('status');
             $table->index('created_by');
+            $table->index('created_at');
+            $table->index(['status', 'created_at']);
         });
     }
 

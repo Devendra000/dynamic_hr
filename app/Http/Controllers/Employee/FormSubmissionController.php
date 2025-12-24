@@ -64,6 +64,13 @@ class FormSubmissionController extends Controller
      *     description="Get all my form submissions with pagination and filters",
      *     security={{"bearerAuth":{}}},
      *     @OA\Parameter(
+     *         name="page",
+     *         in="query",
+     *         description="Page number",
+     *         required=false,
+     *         @OA\Schema(type="integer", default=1)
+     *     ),
+     *     @OA\Parameter(
      *         name="per_page",
      *         in="query",
      *         description="Items per page",
@@ -87,6 +94,7 @@ class FormSubmissionController extends Controller
     {
         try {
             $perPage = $request->get('per_page', 15);
+            $page = $request->get('page', 1);
             $status = $request->get('status');
 
             $submissions = FormSubmission::with(['template:id,title', 'responses.field'])
@@ -95,7 +103,7 @@ class FormSubmissionController extends Controller
                     return $query->where('status', $status);
                 })
                 ->latest()
-                ->paginate($perPage);
+                ->paginate($perPage, ['*'], 'page', $page);
 
             return $this->successResponse('Submissions retrieved successfully', [
                 'submissions' => $submissions->items(),
