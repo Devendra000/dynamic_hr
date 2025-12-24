@@ -36,65 +36,6 @@ class AuthenticationController extends Controller
     }
 
     /**
-     * Register a new user.
-     *
-     * @OA\Post(
-     *     path="/auth/register",
-     *     tags={"Authentication"},
-     *     summary="Register a new user",
-     *     description="Create a new user account and return JWT token",
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"name","email","password","password_confirmation"},
-     *             @OA\Property(property="name", type="string", example="John Doe"),
-     *             @OA\Property(property="email", type="string", format="email", example="john@example.com"),
-     *             @OA\Property(property="password", type="string", format="password", example="Password123!"),
-     *             @OA\Property(property="password_confirmation", type="string", format="password", example="Password123!")
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="User registered successfully",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="success", type="boolean", example=true),
-     *             @OA\Property(property="message", type="string", example="Authentication successful"),
-     *             @OA\Property(property="data", type="object",
-     *                 @OA\Property(property="access_token", type="string"),
-     *                 @OA\Property(property="token_type", type="string", example="bearer"),
-     *                 @OA\Property(property="expires_in", type="integer", example=3600),
-     *                 @OA\Property(property="user", type="object")
-     *             )
-     *         )
-     *     ),
-     *     @OA\Response(response=422, description="Validation error"),
-     *     @OA\Response(response=500, description="Server error")
-     * )
-     *
-     * @param RegisterRequest $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function register(RegisterRequest $request): JsonResponse
-    {
-        try {
-            $user = $this->authService->register($request->validated());
-
-            // Generate token for the newly registered user
-            $token = auth()->login($user);
-
-            return $this->respondWithToken(`$token`, $user)->setStatusCode(201);
-        } catch (AuthenticationException $e) {
-            return $e->render($request);
-        } catch (Exception $e) {
-            return $this->errorResponse(
-                'Registration failed. Please try again.',
-                500,
-                config('app.debug') ? ['error' => $e->getMessage()] : null
-            );
-        }
-    }
-
-    /**
      * Authenticate user and return JWT token.
      *
      * @OA\Post(

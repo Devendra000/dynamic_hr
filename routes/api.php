@@ -31,7 +31,6 @@ Route::group([
     'middleware' => ['api', 'rate.limit.auth'],
     'prefix' => 'auth'
 ], function () {
-    Route::post('/register', [AuthenticationController::class, 'register'])->name('auth.register');
     Route::post('/login', [AuthenticationController::class, 'login'])->name('auth.login');
 });
 
