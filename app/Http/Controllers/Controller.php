@@ -23,7 +23,7 @@ use Illuminate\Routing\Controller as BaseController;
  *
  * @OA\Server(
  *     url="http://localhost:8000/api",
- *     description="Local Development Server"
+ *     description="Local Server"
  * )
  *
  * @OA\Server(
