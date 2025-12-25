@@ -284,45 +284,6 @@ Use Supervisor to manage queue workers persistently:
    sudo supervisorctl status
    sudo supervisorctl tail -f dynamic_hr_queue_worker
    ```
-
-**Alternative: Systemd (Ubuntu 16.04+):**
-```bash
-sudo nano /etc/systemd/system/queue-worker.service
-```
-
-```ini
-[Unit]
-Description=Laravel Queue Worker
-After=network.target
-
-[Service]
-User=www-data
-Group=www-data
-Restart=always
-ExecStart=/usr/bin/php /var/www/dynamic_hr/artisan queue:work --sleep=3 --tries=3 --timeout=600 --max-jobs=1000
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable queue-worker
-sudo systemctl start queue-worker
-```
-
-**Shared Hosting (Limited Access):**
-Use cron jobs to run workers periodically:
-```bash
-# Add to crontab (crontab -e)
-* * * * * cd /var/www/dynamic_hr && php artisan queue:work --stop-when-empty --tries=3 --timeout=600
-```
-
-3. Monitor progress:
-   ```bash
-   php artisan tinker --execute="echo 'Jobs: ' . \Illuminate\Support\Facades\Redis::connection('default')->llen('queues:default') . ' | Submissions: ' . \App\Models\FormSubmission::count();"
-   ```
-
 ---
 
 ### **Requirement 6: API Documentation**
@@ -757,16 +718,16 @@ max_input_time = 600
 
 **For Apache:**
 ```bash
-sudo nano /etc/php/8.1/apache2/php.ini
+sudo nano /etc/php/8.4/apache2/php.ini
 # Edit the values above
 sudo systemctl restart apache2
 ```
 
 **For Nginx with PHP-FPM:**
 ```bash
-sudo nano /etc/php/8.1/fpm/php.ini
+sudo nano /etc/php/8.4/fpm/php.ini
 # Edit the values above
-sudo systemctl restart php8.1-fpm
+sudo systemctl restart php8.4-fpm
 ```
 
 **For Nginx, also update nginx.conf:**
@@ -792,6 +753,21 @@ php -i | grep -E "upload_max_filesize|post_max_size|max_execution_time"
 
 ### **Server-Specific Setup (Nginx at /var/www/dynamic_hr):**
 
+**Install Redis (Required for Queue Processing):**
+The application uses Redis for background job queuing.
+
+**Run Redis with Docker:**
+```bash
+# Run only Redis from docker-compose
+docker-compose up -d redis
+
+# Or run Redis in a separate container
+docker run -d --name dynamic_hr_redis -p 6379:6379 redis:7-alpine
+
+# Verify Redis is running
+docker exec dynamic_hr_redis redis-cli ping  # Should respond with "PONG"
+```
+
 **Permissions:**
 Ensure `www-data` user owns the project and has write access to storage:
 ```bash
@@ -814,7 +790,7 @@ server {
 ```
 
 **PHP Configuration:**
-Update `/etc/php/8.1/fpm/php.ini` for large file uploads:
+Update `/etc/php/8.4/fpm/php.ini` for large file uploads:
 ```ini
 upload_max_filesize = 50M
 post_max_size = 50M
@@ -824,7 +800,7 @@ max_execution_time = 600
 
 Restart PHP-FPM:
 ```bash
-sudo systemctl restart php8.1-fpm
+sudo systemctl restart php8.4-fpm
 ```
 
 ---
