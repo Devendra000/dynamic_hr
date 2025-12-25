@@ -279,6 +279,10 @@ Use Supervisor to manage queue workers persistently:
    sudo supervisorctl start dynamic_hr_queue_worker:*
    ```
 
+  ```Check if it's working with tinker:
+    php artisan tinker --execute="echo 'Jobs in queue: ' . \Illuminate\Support\Facades\Redis::connection('default')->llen('queues:default') . ' | Total submissions: ' . \App\Models\FormSubmission::count();"
+  ```
+
 5. **Monitor Workers:**
    ```bash
    sudo supervisorctl status
