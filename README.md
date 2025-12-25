@@ -1,23 +1,23 @@
-# 📋 Dynamic HR Form Template System
+# Dynamic HR Form Template System
 
 A comprehensive Laravel-based HR management system that enables Admin/HR personnel to create dynamic form templates and employees to submit responses, with advanced Excel import/export capabilities.
 
-## 🎯 Project Overview
+## Project Overview
 
 This system provides a complete solution for managing HR forms dynamically without requiring code changes for each new form type. It features JWT-based authentication, role-based access control, and robust Excel integration for bulk operations.
 
 **Key Features:**
-- 🔐 JWT Authentication & Authorization
-- 👥 Role-Based Access Control (Admin, HR, Employee)
-- 📝 Dynamic Form Template Builder
-- 📊 Form Submission Management
-- 📤 Excel Import/Export with Validation
-- 🔍 Advanced Filtering & Search
-- 📖 Complete API Documentation (Swagger)
+- JWT Authentication & Authorization
+- Role-Based Access Control (Admin, HR, Employee)
+- Dynamic Form Template Builder
+- Form Submission Management
+- Excel Import/Export with Validation
+- Advanced Filtering & Search
+- Complete API Documentation (Swagger)
 
 ---
 
-## 🛠️ Technical Stack & Implementation
+## Technical Stack & Implementation
 
 ### **Requirement 1: Authentication**
 **Need:** Secure JWT-based authentication system with token management
@@ -354,7 +354,7 @@ Gate::define('viewTelescope', function ($user) {
 
 ---
 
-## 🗄️ Database Architecture
+## Database Architecture
 
 ### **Performance Optimizations:**
 - **Composite Indexes** for frequently queried column combinations:
@@ -378,7 +378,7 @@ SubmissionResponse -> belongsTo(FormField)
 
 ---
 
-## 📦 Installation & Setup
+## Installation & Setup
 
 ### **Prerequisites:**
 - PHP 8.1+
@@ -471,7 +471,7 @@ while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=
 
 ---
 
-## 👤 Default Test Users
+## Default Test Users
 
 | Role     | Email                    | Password    |
 |----------|--------------------------|-------------|
@@ -481,7 +481,7 @@ while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=
 
 ---
 
-## 🔐 Authentication Flow
+## Authentication Flow
 
 1. **Register/Login:**
 ```bash
@@ -514,7 +514,7 @@ POST /api/auth/refresh
 
 ---
 
-## 📚 API Usage Examples
+## API Usage Examples
 
 ### **Create Form Template (Admin/HR)**
 ```bash
@@ -613,23 +613,23 @@ Authorization: Bearer <token>
 
 ---
 
-## 🔒 Security Features
+## Security Features
 
-- ✅ JWT token authentication with expiration
-- ✅ Role-based access control (RBAC)
-- ✅ Permission-based authorization
-- ✅ Rate limiting on authentication endpoints
-- ✅ Password hashing with bcrypt
-- ✅ SQL injection prevention (Eloquent ORM)
-- ✅ XSS protection
-- ✅ Input validation and sanitization
-- ✅ Excel file type and size validation (10MB limit)
-- ✅ Submission ownership verification
-- ✅ Comprehensive error logging
+- JWT token authentication with expiration
+- Role-based access control (RBAC)
+- Permission-based authorization
+- Rate limiting on authentication endpoints
+- Password hashing with bcrypt
+- SQL injection prevention (Eloquent ORM)
+- XSS protection
+- Input validation and sanitization
+- Excel file type and size validation (10MB limit)
+- Submission ownership verification
+- Comprehensive error logging
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 app/
@@ -668,25 +668,9 @@ app/
 └── Traits/
     └── ApiResponse.php
 ```
-
 ---
 
-## 🧪 Testing
-
-```bash
-# Run all tests
-php artisan test
-
-# Run specific test suite
-php artisan test --testsuite=Feature
-
-# Run with coverage
-php artisan test --coverage
-```
-
----
-
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### **Issue: JWT Token Invalid**
 ```bash
@@ -811,7 +795,7 @@ sudo systemctl restart php8.4-fpm
 
 ---
 
-## 📖 Additional Resources
+## Additional Resources
 
 - **Swagger Documentation:** `/api/documentation`
 - **Telescope Performance Monitor:** `/telescope`
@@ -823,7 +807,7 @@ sudo systemctl restart php8.4-fpm
 
 ---
 
-## 👨‍💻 Developer
+## Developer
 **Devendra Hamal**
 **Project:** Dynamic HR Form Template System  
 **Framework:** Laravel 10+  
