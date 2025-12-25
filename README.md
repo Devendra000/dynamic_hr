@@ -281,6 +281,8 @@ Use Supervisor to manage queue workers persistently:
 
   ```Check if it's working with tinker:
     php artisan tinker --execute="echo 'Jobs in queue: ' . \Illuminate\Support\Facades\Redis::connection('default')->llen('queues:default') . ' | Total submissions: ' . \App\Models\FormSubmission::count();"
+
+    php artisan tinker --execute="echo 'Active imports: '; \App\Models\FormImport::where('status', 'processing')->get()->each(function(\$import) { echo 'ID: ' . \$import->id . ' - Status: ' . \$import->status . ' - Imported: ' . \$import->imported_count . '/' . \$import->total_rows . PHP_EOL; });"
   ```
 
 5. **Monitor Workers:**
