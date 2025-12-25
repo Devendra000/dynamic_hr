@@ -73,6 +73,18 @@ class ProcessFormImportChunk implements ShouldQueue
                     }
 
                     if (!empty($value) || $value === '0') {
+                        // Validate field value
+                        $validationError = $this->validateFieldValue($field, $value);
+                        if ($validationError) {
+                            Log::warning("Validation failed for field '{$field->label}': {$validationError}, skipping row", [
+                                'user_id' => $this->userId,
+                                'field' => $field->label,
+                                'value' => $value
+                            ]);
+                            $skipped++;
+                            continue 2; // Skip this row
+                        }
+
                         $rowResponses[] = [
                             'form_field_id' => $field->id,
                             'response_value' => $value,
@@ -125,5 +137,60 @@ class ProcessFormImportChunk implements ShouldQueue
                 ]);
             }
         }
+    }
+
+    /**
+     * Validate a field value based on its type and validation rules.
+     */
+    private function validateFieldValue($field, $value)
+    {
+        $rules = $field->validation_rules ?? [];
+
+        switch ($field->field_type) {
+            case 'email':
+                if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                    return 'Invalid email format';
+                }
+                break;
+
+            case 'number':
+                if (!is_numeric($value)) {
+                    return 'Must be a number';
+                }
+                $numValue = (float) $value;
+                if (isset($rules['min']) && $numValue < $rules['min']) {
+                    return "Must be at least {$rules['min']}";
+                }
+                if (isset($rules['max']) && $numValue > $rules['max']) {
+                    return "Must be at most {$rules['max']}";
+                }
+                break;
+
+            case 'date':
+                try {
+                    \Carbon\Carbon::parse($value);
+                } catch (\Exception $e) {
+                    return 'Invalid date format';
+                }
+                break;
+
+            case 'text':
+                if (isset($rules['min']) && strlen($value) < $rules['min']) {
+                    return "Must be at least {$rules['min']} characters";
+                }
+                if (isset($rules['max']) && strlen($value) > $rules['max']) {
+                    return "Must be at most {$rules['max']} characters";
+                }
+                break;
+
+            case 'dropdown':
+            case 'radio':
+                if (!empty($field->options) && !in_array($value, $field->options)) {
+                    return 'Value not in allowed options';
+                }
+                break;
+        }
+
+        return null; // No error
     }
 }
