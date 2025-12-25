@@ -70,7 +70,7 @@ class ProcessFormImport implements ShouldQueue
                 ]);
             }
 
-            // Use Maatwebsite\Excel chunked import for true memory efficiency
+            // Read CSV file and split into chunks
             $fullFilePath = Storage::path($this->filePath);
             
             // Debug: Check if file exists
@@ -78,29 +78,50 @@ class ProcessFormImport implements ShouldQueue
                 throw new \Exception("File does not exist at path: {$fullFilePath}");
             }
             
-            Log::info('File exists, starting Excel import', [
+            Log::info('File exists, reading CSV for chunking', [
                 'file_path' => $this->filePath,
                 'full_path' => $fullFilePath,
                 'file_size' => filesize($fullFilePath)
             ]);
             
-            $import = new \App\Imports\QueuedFormSubmissionsImport($this->formTemplateId, $this->userId, $this->importId);
-            Excel::import($import, $fullFilePath, null, \Maatwebsite\Excel\Excel::CSV);
-
-            // Clean up - commented out to keep files for debugging/testing
-            // Storage::delete($this->filePath);
-
-            // Update import status to completed (actual stats can be updated in the import class if needed)
+            $rows = [];
+            $handle = fopen($fullFilePath, 'r');
+            $header = fgetcsv($handle); // Skip header
+            
+            while (($data = fgetcsv($handle)) !== false) {
+                $row = [];
+                foreach ($header as $index => $column) {
+                    $row[strtolower(str_replace(' ', '_', $column))] = $data[$index] ?? null;
+                }
+                $rows[] = $row;
+            }
+            fclose($handle);
+            
+            $totalRows = count($rows);
+            
+            // Update total_rows in import
             if ($this->importId) {
                 DB::table('form_imports')->where('id', $this->importId)->update([
-                    'status' => 'completed',
-                    'completed_at' => now(),
+                    'total_rows' => $totalRows,
                 ]);
             }
+            
+            // Split into chunks of 10,000 rows
+            $chunks = array_chunk($rows, 10000);
+            
+            Log::info('Dispatching chunk jobs', ['total_chunks' => count($chunks)]);
+            
+            foreach ($chunks as $chunk) {
+                \App\Jobs\ProcessFormImportChunk::dispatch($this->formTemplateId, $this->userId, $this->importId, $chunk);
+            }
 
-            Log::info('Form import completed', [
+            // Note: Status remains 'processing' until all chunks complete
+            // Chunks will update imported_count; user can monitor progress
+
+            Log::info('Form import chunks dispatched', [
                 'template_id' => $this->formTemplateId,
-                'user_id' => $this->userId
+                'user_id' => $this->userId,
+                'total_chunks' => count($chunks)
             ]);
 
         } catch (\Exception $e) {

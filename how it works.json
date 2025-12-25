@@ -176,3 +176,16 @@ curl -X 'POST' \
       ]
     }    
 }
+
+
+for queue, allow 1GB for import
+php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600
+
+php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --max-jobs=0 --sleep=3
+
+
+while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --once; done
+-> runs forever
+
+checking if job is running:
+php artisan tinker --execute="echo 'Jobs in queue: ' . \Illuminate\Support\Facades\Redis::connection('default')->llen('queues:default') . ' | Submissions: ' . \App\Models\FormSubmission::count();"

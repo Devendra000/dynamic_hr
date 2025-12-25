@@ -176,7 +176,12 @@ app/Http/Requests/FormSubmissionRequest.php
 - Field validation during import (type, required, min/max, options)
 - Row-by-row error reporting with line numbers
 - Preview/validate endpoint before actual import
-- Batch processing with database transactions
+- **Background processing using Laravel queues (Redis)**
+- **Chunking: Automatically splits large CSV files into 10,000-row chunks for parallel processing**
+- **Parallel processing with multiple queue workers for faster imports**
+- File storage in `storage/app/imports` with unique filenames
+- Real-time import status tracking and retry functionality
+- Batch processing with database transactions per chunk
 - Import statistics: imported count, skipped count, errors list
 - Data validation dropdowns in Excel template
 
@@ -185,8 +190,12 @@ app/Http/Requests/FormSubmissionRequest.php
 app/Exports/FormSubmissionsExport.php
 app/Exports/FormTemplateExport.php
 app/Imports/FormSubmissionsImport.php
+app/Imports/QueuedFormSubmissionsImport.php
+app/Jobs/ProcessFormImport.php
+app/Jobs/ProcessFormImportChunk.php
 app/Http/Controllers/ExcelController.php
 config/excel.php
+config/queue.php
 ```
 
 **Validation in Imports:**
@@ -206,8 +215,30 @@ config/excel.php
 **Endpoints:**
 - `GET /api/admin/submissions/export` - Download Excel
 - `GET /api/admin/form-templates/{id}/excel-template` - Sample template
-- `POST /api/admin/submissions/import` - Upload and import
+- `POST /api/admin/submissions/import` - Upload and import (queues background job)
 - `POST /api/admin/submissions/import/validate` - Preview validation
+- `GET /api/admin/submissions/imports` - List user imports
+- `GET /api/admin/submissions/import/status/{importId}` - Get import status
+- `POST /api/admin/submissions/import/{importId}/retry` - Retry failed import
+
+**Queue Processing:**
+To process background import jobs, run queue workers. For parallel processing of chunks:
+
+1. Ensure Redis is running (`docker-compose up redis`).
+2. Run multiple workers in separate terminals:
+   ```bash
+   # In terminal 1
+   while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --once; done
+
+   # In terminal 2
+   while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --once; done
+
+   # Repeat for 4+ workers
+   ```
+3. Monitor progress:
+   ```bash
+   php artisan tinker --execute="echo 'Jobs: ' . \Illuminate\Support\Facades\Redis::connection('default')->llen('queues:default') . ' | Submissions: ' . \App\Models\FormSubmission::count();"
+   ```
 
 ---
 
@@ -302,7 +333,7 @@ SubmissionResponse -> belongsTo(FormField)
 ### **Prerequisites:**
 - PHP 8.1+
 - Composer
-- Docker & Docker Compose (for PostgreSQL database)
+- Docker & Docker Compose (for PostgreSQL and Redis)
 
 ### **Installation Steps:**
 
@@ -312,17 +343,21 @@ git clone <repository-url>
 cd dynamic_hr
 ```
 
-2. **Start PostgreSQL with Docker**
+2. **Start PostgreSQL and Redis with Docker**
 ```bash
 docker-compose up -d
 ```
 
-This will start PostgreSQL container with:
-- **Host:** 127.0.0.1
-- **Port:** 5432 (mapped to 8002 on host if port conflict)
-- **Database:** dynamic_hr_db
-- **Username:** dynamic_hr_user
-- **Password:** password
+This will start containers:
+- **PostgreSQL:**
+  - Host: 127.0.0.1
+  - Port: 5432 (mapped to 8002 on host if port conflict)
+  - Database: dynamic_hr_db
+  - Username: dynamic_hr_user
+  - Password: password
+- **Redis:**
+  - Host: 127.0.0.1
+  - Port: 6379
 
 3. **Install PHP dependencies**
 ```bash
@@ -370,7 +405,16 @@ php artisan l5-swagger:generate
 php artisan serve
 ```
 
-9. **Access the application**
+9. **Run queue workers for background imports** (in separate terminals)
+```bash
+# Terminal 1
+while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --once; done
+
+# Terminal 2 (optional, for parallel processing)
+while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --once; done
+```
+
+10. **Access the application**
 - API: `http://localhost:8000/api`
 - Swagger Docs: `http://localhost:8000/api/documentation`
 - Telescope (Performance Monitor): `http://localhost:8000/telescope`
@@ -494,15 +538,27 @@ Authorization: Bearer <token>
 # 1. Download template
 GET /api/admin/form-templates/1/excel-template
 
-# 2. Fill Excel file with data
+# 2. Fill Excel/CSV file with data (supports large files via chunking)
 
-# 3. Upload and import
+# 3. Upload and import (queues background job)
 POST /api/admin/submissions/import
 Authorization: Bearer <token>
 Content-Type: multipart/form-data
 
 form_template_id: 1
-file: <excel-file>
+file: <csv-file>
+
+# Response: {"success": true, "message": "Import started", "data": {"import_id": 123}}
+
+# 4. Check import status
+GET /api/admin/submissions/import/status/123
+Authorization: Bearer <token>
+
+# Response: {"success": true, "data": {"status": "processing", "imported_count": 5000, "skipped_count": 0}}
+
+# 5. Retry if failed
+POST /api/admin/submissions/import/123/retry
+Authorization: Bearer <token>
 ```
 
 ---
