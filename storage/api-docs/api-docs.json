@@ -7,17 +7,9 @@
             "name": "API Support",
             "email": "admin@dynamichr.com"
         },
-        "license": {
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
-        },
         "version": "1.0.0"
     },
     "servers": [
-        {
-            "url": "http://localhost:8000/api",
-            "description": "Local Server"
-        },
         {
             "url": "https://hr.devendrahamal.com.np/api",
             "description": "Production Server"
