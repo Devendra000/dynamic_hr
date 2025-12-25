@@ -116,6 +116,9 @@ Route::group([
         Route::get('/export', [ExcelController::class, 'exportSubmissions'])->name('admin.submissions.export');
         Route::post('/import', [ExcelController::class, 'importSubmissions'])->name('admin.submissions.import');
         Route::post('/import/validate', [ExcelController::class, 'validateImport'])->name('admin.submissions.import-validate');
+        Route::get('/imports', [ExcelController::class, 'getUserImports'])->name('admin.submissions.imports');
+        Route::get('/import/status/{importId}', [ExcelController::class, 'getImportStatus'])->name('admin.submissions.import-status');
+        Route::post('/import/{importId}/retry', [ExcelController::class, 'retryImport'])->name('admin.submissions.import-retry');
         
         Route::get('/{id}', [FormSubmissionAdminController::class, 'show'])->name('admin.submissions.show');
         Route::put('/{id}/status', [FormSubmissionAdminController::class, 'updateStatus'])->name('admin.submissions.update-status');

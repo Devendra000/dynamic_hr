@@ -5,12 +5,16 @@ namespace App\Http\Controllers;
 use App\Exports\FormSubmissionsExport;
 use App\Exports\FormTemplateExport;
 use App\Imports\FormSubmissionsImport;
+use App\Jobs\ProcessFormImport;
+use App\Models\FormImport;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -288,7 +292,7 @@ class ExcelController extends Controller
                 'form_template_id.exists' => 'The selected form template does not exist.',
             ]);
 
-            $formTemplate = FormTemplate::findOrFail($validated['form_template_id']);
+            $formTemplate = FormTemplate::with('fields')->findOrFail($validated['form_template_id']);
 
             // Check if template is active
             if ($formTemplate->status !== FormTemplate::STATUS_ACTIVE) {
@@ -301,23 +305,51 @@ class ExcelController extends Controller
 
             $file = $request->file('file');
             
-            $import = new FormSubmissionsImport($validated['form_template_id'], auth()->id());
+            // Step 1: Store file first (fast upload)
+            $filename = 'imports/' . uniqid() . '_' . time() . '_' . $file->getClientOriginalName();
+            $filePath = $file->storeAs('imports', basename($filename));
 
-            Excel::import($import, $file);
+            // Step 2: Validate headers from stored file
+            $storedFilePath = Storage::path($filePath);
+            $headerValidation = $this->validateImportHeadersFromPath($storedFilePath, $formTemplate);
+            if (!$headerValidation['valid']) {
+                // Delete the uploaded file since headers are invalid
+                Storage::delete($filePath);
+                return $this->validationErrorResponse(
+                    'Invalid file headers',
+                    ['headers' => $headerValidation['errors']]
+                );
+            }
 
-            $stats = $import->getStats();
+            // Step 3: Create import record
+            $importId = DB::table('form_imports')->insertGetId([
+                'form_template_id' => $validated['form_template_id'],
+                'user_id' => auth()->id(),
+                'filename' => $file->getClientOriginalName(),
+                'file_path' => $filePath,
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-            Log::info('Form submissions imported', [
+            // Step 4: Dispatch job to queue
+            ProcessFormImport::dispatch(
+                $filePath,
+                $validated['form_template_id'],
+                auth()->id(),
+                $importId
+            );
+
+            Log::info('Form import job dispatched', [
                 'template_id' => $validated['form_template_id'],
-                'stats' => $stats,
+                'import_id' => $importId,
                 'user_id' => auth()->id()
             ]);
 
-            return $this->successResponse('Import completed', [
-                'imported' => $stats['imported'],
-                'skipped' => $stats['skipped'],
-                'total' => $stats['imported'] + $stats['skipped'],
-                'errors' => $stats['errors']
+            return $this->successResponse('Import started successfully. Processing in background.', [
+                'import_id' => $importId,
+                'status' => 'pending',
+                'message' => 'Your file is being processed. You can check the status using the import ID.'
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -555,6 +587,306 @@ class ExcelController extends Controller
 
             return $this->serverErrorResponse(
                 'Failed to validate file',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
+        }
+    }
+
+    /**
+     * Validate import file headers against form template fields
+     */
+    protected function validateImportHeadersFromPath($filePath, $formTemplate)
+    {
+        try {
+            // Read headers from the file
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($filePath);
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($filePath);
+            $worksheet = $spreadsheet->getActiveSheet();
+            
+            $headers = [];
+            foreach ($worksheet->getRowIterator(1, 1) as $row) {
+                $cellIterator = $row->getCellIterator();
+                $cellIterator->setIterateOnlyExistingCells(false);
+                foreach ($cellIterator as $cell) {
+                    $value = trim($cell->getValue());
+                    if (!empty($value)) {
+                        $headers[] = strtolower(str_replace(' ', '_', $value));
+                    }
+                }
+            }
+
+            // Get expected headers from form template
+            $expectedHeaders = [];
+            $expectedHeadersDisplay = [];
+            foreach ($formTemplate->fields as $field) {
+                $expectedLabel = strtolower(str_replace(' ', '_', $field->label));
+                $expectedHeaders[] = $expectedLabel;
+                $expectedHeadersDisplay[] = $field->label;
+            }
+
+            // Check for missing headers
+            $missingHeaders = array_diff($expectedHeaders, $headers);
+            $extraHeaders = array_diff($headers, $expectedHeaders);
+
+            $errors = [];
+            if (!empty($missingHeaders)) {
+                $missingDisplay = [];
+                foreach ($missingHeaders as $missing) {
+                    $index = array_search($missing, $expectedHeaders);
+                    $missingDisplay[] = $expectedHeadersDisplay[$index];
+                }
+                $errors[] = 'Missing required columns: ' . implode(', ', $missingDisplay);
+            }
+
+            if (!empty($extraHeaders)) {
+                $errors[] = 'Unexpected columns found: ' . implode(', ', $extraHeaders);
+            }
+
+            return [
+                'valid' => empty($errors),
+                'errors' => $errors,
+                'found_headers' => $headers,
+                'expected_headers' => $expectedHeadersDisplay
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'valid' => false,
+                'errors' => ['Failed to read file headers: ' . $e->getMessage()]
+            ];
+        }
+    }
+
+    /**
+     * Get import status
+     *
+     * @OA\Get(
+     *     path="/admin/submissions/import/status/{importId}",
+     *     tags={"Excel Import/Export"},
+     *     summary="Get import status",
+     *     description="Get the status of a background import job",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="importId",
+     *         in="path",
+     *         required=true,
+     *         description="Import ID",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Import status retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Import status retrieved"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="status", type="string"),
+     *                 @OA\Property(property="filename", type="string"),
+     *                 @OA\Property(property="imported_count", type="integer"),
+     *                 @OA\Property(property="skipped_count", type="integer"),
+     *                 @OA\Property(property="errors", type="array", @OA\Items(type="object"))
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Import not found"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function getImportStatus($importId): JsonResponse
+    {
+        try {
+            $import = DB::table('form_imports')
+                ->where('id', $importId)
+                ->where('user_id', auth()->id())
+                ->first();
+
+            if (!$import) {
+                return $this->notFoundResponse('Import not found');
+            }
+
+            return $this->successResponse('Import status retrieved', [
+                'id' => $import->id,
+                'form_template_id' => $import->form_template_id,
+                'filename' => $import->filename,
+                'status' => $import->status,
+                'imported_count' => $import->imported_count,
+                'skipped_count' => $import->skipped_count,
+                'errors' => $import->errors ? json_decode($import->errors, true) : [],
+                'started_at' => $import->started_at,
+                'completed_at' => $import->completed_at,
+                'created_at' => $import->created_at,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get import status', [
+                'error' => $e->getMessage(),
+                'import_id' => $importId
+            ]);
+
+            return $this->serverErrorResponse(
+                'Failed to retrieve import status',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
+        }
+    }
+
+    /**
+     * Get all imports for authenticated user
+     *
+     * @OA\Get(
+     *     path="/admin/submissions/imports",
+     *     tags={"Excel Import/Export"},
+     *     summary="Get user imports",
+     *     description="Get all imports for the authenticated user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="status",
+     *         in="query",
+     *         description="Filter by status",
+     *         @OA\Schema(type="string", enum={"pending", "processing", "completed", "failed"})
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Imports retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Imports retrieved"),
+     *             @OA\Property(property="data", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function getUserImports(Request $request): JsonResponse
+    {
+        try {
+            $query = DB::table('form_imports')
+                ->where('user_id', auth()->id())
+                ->orderBy('created_at', 'desc');
+
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+
+            $imports = $query->get()->map(function ($import) {
+                return [
+                    'id' => $import->id,
+                    'form_template_id' => $import->form_template_id,
+                    'filename' => $import->filename,
+                    'status' => $import->status,
+                    'imported_count' => $import->imported_count,
+                    'skipped_count' => $import->skipped_count,
+                    'errors' => $import->errors ? json_decode($import->errors, true) : [],
+                    'started_at' => $import->started_at,
+                    'completed_at' => $import->completed_at,
+                    'created_at' => $import->created_at,
+                ];
+            });
+
+            return $this->successResponse('Imports retrieved', [
+                'imports' => $imports,
+                'total' => $imports->count()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get user imports', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id()
+            ]);
+
+            return $this->serverErrorResponse(
+                'Failed to retrieve imports',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
+        }
+    }
+
+    /**
+     * Retry a failed import
+     *
+     * @OA\Post(
+     *     path="/admin/submissions/import/{importId}/retry",
+     *     tags={"Excel Import/Export"},
+     *     summary="Retry failed import",
+     *     description="Retry a failed import job",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="importId",
+     *         in="path",
+     *         required=true,
+     *         description="Import ID",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Import retry initiated",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Import retry initiated"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="import_id", type="integer", example=1)
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=400, description="Import is not failed or already processing"),
+     *     @OA\Response(response=404, description="Import not found"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
+    public function retryImport(int $importId): JsonResponse
+    {
+        try {
+            $import = FormImport::where('id', $importId)
+                ->where('user_id', auth()->id())
+                ->first();
+
+            if (!$import) {
+                return $this->notFoundResponse('Import not found');
+            }
+
+            if ($import->status !== 'failed') {
+                return $this->errorResponse('Only failed imports can be retried', null, 400);
+            }
+
+            // Check if file still exists
+            if (!Storage::disk('local')->exists($import->file_path)) {
+                return $this->errorResponse('Import file no longer exists', null, 400);
+            }
+
+            // Reset import status
+            $import->update([
+                'status' => 'pending',
+                'started_at' => null,
+                'completed_at' => null,
+                'imported_count' => 0,
+                'skipped_count' => 0,
+                'errors' => null,
+            ]);
+
+            // Re-dispatch the job with all required parameters
+            ProcessFormImport::dispatch(
+                $import->file_path,
+                $import->form_template_id,
+                $import->user_id,
+                $import->id
+            );
+
+            return $this->successResponse('Import retry initiated', [
+                'import_id' => $import->id
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to retry import', [
+                'error' => $e->getMessage(),
+                'import_id' => $importId
+            ]);
+
+            return $this->serverErrorResponse(
+                'Failed to retry import',
                 config('app.debug') ? ['error' => $e->getMessage()] : null
             );
         }

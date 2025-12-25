@@ -1857,6 +1857,214 @@
                 ]
             }
         },
+        "/admin/submissions/import/status/{importId}": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Get import status",
+                "description": "Get the status of a background import job",
+                "operationId": "b83f703f9899fb3b692ea6d9a7dd8ffc",
+                "parameters": [
+                    {
+                        "name": "importId",
+                        "in": "path",
+                        "description": "Import ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Import status retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Import status retrieved"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "filename": {
+                                                    "type": "string"
+                                                },
+                                                "imported_count": {
+                                                    "type": "integer"
+                                                },
+                                                "skipped_count": {
+                                                    "type": "integer"
+                                                },
+                                                "errors": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Import not found"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/imports": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Get user imports",
+                "description": "Get all imports for the authenticated user",
+                "operationId": "1f884aff2bf22b7e2a2f4987459b5f33",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pending",
+                                "processing",
+                                "completed",
+                                "failed"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Imports retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Imports retrieved"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/submissions/import/{importId}/retry": {
+            "post": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Retry failed import",
+                "description": "Retry a failed import job",
+                "operationId": "ec1c6319a1a7db8db953eabc08a65b7e",
+                "parameters": [
+                    {
+                        "name": "importId",
+                        "in": "path",
+                        "description": "Import ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Import retry initiated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Import retry initiated"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "import_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Import is not failed or already processing"
+                    },
+                    "404": {
+                        "description": "Import not found"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/admin/form-templates": {
             "get": {
                 "tags": [

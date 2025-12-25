@@ -13,12 +13,33 @@ services:
       - "8002:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - dynamic_hr_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: dynamic_hr_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - dynamic_hr_network
 
   adminer:
     image: adminer
     restart: always
     ports:
       - "8003:8080"
+    networks:
+      - dynamic_hr_network
 
 volumes:
   pgdata:
+  redis_data:
+
+networks:
+  dynamic_hr_network:
+    driver: bridge

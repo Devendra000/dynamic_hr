@@ -8,7 +8,7 @@ curl -X 'POST' \
   -d '{
   "title": "Employee Feedback Form",
   "description": "Annual employee feedback survey",
-  "status": "draft",
+  "status": "active",
   "fields": [
     {
       "field_type": "text",
