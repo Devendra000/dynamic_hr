@@ -190,7 +190,6 @@ while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=
 checking if job is running:
 php artisan tinker --execute="echo 'Jobs in queue: ' . \Illuminate\Support\Facades\Redis::connection('default')->llen('queues:default') . ' | Submissions: ' . \App\Models\FormSubmission::count();"
 
-
 in server with queue (10,000 data):
 curl -X 'GET' \
   'https://hr.devendrahamal.com.np/api/admin/submissions/imports' \
