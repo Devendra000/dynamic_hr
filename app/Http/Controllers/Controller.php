@@ -14,16 +14,7 @@ use Illuminate\Routing\Controller as BaseController;
  *     @OA\Contact(
  *         email="admin@dynamichr.com",
  *         name="API Support"
- *     ),
- *     @OA\License(
- *         name="MIT",
- *         url="https://opensource.org/licenses/MIT"
  *     )
- * )
- *
- * @OA\Server(
- *     url="http://localhost:8000/api",
- *     description="Local Server"
  * )
  *
  * @OA\Server(
