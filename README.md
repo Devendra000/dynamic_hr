@@ -224,17 +224,100 @@ config/queue.php
 **Queue Processing:**
 To process background import jobs, run queue workers. For parallel processing of chunks:
 
+**Development (Local):**
 1. Ensure Redis is running (`docker-compose up redis`).
 2. Run multiple workers in separate terminals:
    ```bash
-   # In terminal 1
+   # Terminal 1
    while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --once; done
 
-   # In terminal 2
+   # Terminal 2
    while true; do php -d memory_limit=1024M artisan queue:work --tries=3 --timeout=600 --once; done
 
    # Repeat for 4+ workers
    ```
+
+**Production (Server):**
+Use Supervisor to manage queue workers persistently:
+
+1. **Install Supervisor:**
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install supervisor
+
+   # CentOS/RHEL
+   sudo yum install supervisor
+   ```
+
+2. **Create Supervisor Configuration:**
+   ```bash
+   sudo nano /etc/supervisor/conf.d/dynamic_hr_queue.conf
+   ```
+
+   Add this content (for nginx server):
+   ```ini
+   [program:dynamic_hr_queue_worker]
+   process_name=%(program_name)s_%(process_num)02d
+   command=php /var/www/dynamic_hr/artisan queue:work --sleep=3 --tries=3 --timeout=600 --max-jobs=1000
+   directory=/var/www/dynamic_hr
+   autostart=true
+   autorestart=true
+   numprocs=4
+   user=www-data
+   redirect_stderr=true
+   stdout_logfile=/var/www/dynamic_hr/storage/logs/queue.log
+   ```
+
+3. **Update Configuration:**
+   - Adjust `numprocs=4` for number of worker processes (based on your server CPU cores)
+   - User is set to `www-data` (nginx default)
+
+4. **Start Supervisor:**
+   ```bash
+   sudo supervisorctl reread
+   sudo supervisorctl update
+   sudo supervisorctl start dynamic_hr_queue_worker:*
+   ```
+
+5. **Monitor Workers:**
+   ```bash
+   sudo supervisorctl status
+   sudo supervisorctl tail -f dynamic_hr_queue_worker
+   ```
+
+**Alternative: Systemd (Ubuntu 16.04+):**
+```bash
+sudo nano /etc/systemd/system/queue-worker.service
+```
+
+```ini
+[Unit]
+Description=Laravel Queue Worker
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+ExecStart=/usr/bin/php /var/www/dynamic_hr/artisan queue:work --sleep=3 --tries=3 --timeout=600 --max-jobs=1000
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable queue-worker
+sudo systemctl start queue-worker
+```
+
+**Shared Hosting (Limited Access):**
+Use cron jobs to run workers periodically:
+```bash
+# Add to crontab (crontab -e)
+* * * * * cd /var/www/dynamic_hr && php artisan queue:work --stop-when-empty --tries=3 --timeout=600
+```
+
 3. Monitor progress:
    ```bash
    php artisan tinker --execute="echo 'Jobs: ' . \Illuminate\Support\Facades\Redis::connection('default')->llen('queues:default') . ' | Submissions: ' . \App\Models\FormSubmission::count();"
@@ -707,10 +790,41 @@ php -i | grep -E "upload_max_filesize|post_max_size|max_execution_time"
 - "File was only partially uploaded" → Increase `max_input_time` or check network
 - "Failed to write file to disk" → Check disk space and permissions on `/tmp`
 
-### **Issue: Slow Queries**
+### **Server-Specific Setup (Nginx at /var/www/dynamic_hr):**
+
+**Permissions:**
+Ensure `www-data` user owns the project and has write access to storage:
 ```bash
-# Run fresh migration to apply indexes
-php artisan migrate:fresh --seed
+sudo chown -R www-data:www-data /var/www/dynamic_hr
+sudo chmod -R 755 /var/www/dynamic_hr
+sudo chmod -R 775 /var/www/dynamic_hr/storage
+sudo chmod -R 775 /var/www/dynamic_hr/bootstrap/cache
+```
+
+**Nginx Configuration:**
+Make sure your nginx site config points to `/var/www/dynamic_hr/public`:
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /var/www/dynamic_hr/public;
+    
+    # ... rest of config
+}
+```
+
+**PHP Configuration:**
+Update `/etc/php/8.1/fpm/php.ini` for large file uploads:
+```ini
+upload_max_filesize = 50M
+post_max_size = 50M
+memory_limit = 1024M
+max_execution_time = 600
+```
+
+Restart PHP-FPM:
+```bash
+sudo systemctl restart php8.1-fpm
 ```
 
 ---
