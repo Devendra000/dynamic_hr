@@ -47,6 +47,8 @@ class ProcessFormImportChunk implements ShouldQueue
      */
     public function handle(): void
     {
+        ini_set('memory_limit', '512M');
+
         $formTemplate = FormTemplate::find($this->formTemplateId);
         if (!$formTemplate) {
             Log::error('Form template not found', ['id' => $this->formTemplateId]);
@@ -55,8 +57,19 @@ class ProcessFormImportChunk implements ShouldQueue
 
         $imported = 0;
         $skipped = 0;
+        $batchSize = 1000;
+        $batchImported = 0;
+        $batchSkipped = 0;
 
         foreach ($this->rows as $row) {
+            // Normalize row keys to match field labels
+            $normalizedRow = [];
+            foreach ($row as $key => $value) {
+                $normalizedKey = strtolower(str_replace(' ', '_', $key));
+                $normalizedRow[$normalizedKey] = $value;
+            }
+            $row = $normalizedRow;
+
             try {
                 $rowResponses = [];
                 foreach ($formTemplate->fields as $field) {
@@ -69,6 +82,7 @@ class ProcessFormImportChunk implements ShouldQueue
                             'field' => $field->label
                         ]);
                         $skipped++;
+                        $batchSkipped++;
                         continue 2; // Skip this row
                     }
 
@@ -82,6 +96,7 @@ class ProcessFormImportChunk implements ShouldQueue
                                 'value' => $value
                             ]);
                             $skipped++;
+                            $batchSkipped++;
                             continue 2; // Skip this row
                         }
 
@@ -113,6 +128,7 @@ class ProcessFormImportChunk implements ShouldQueue
                     DB::table('submission_responses')->insert($rowResponses);
 
                     $imported++;
+                    $batchImported++;
                 }
             } catch (\Exception $e) {
                 Log::error('Error processing row in chunk', [
@@ -120,13 +136,41 @@ class ProcessFormImportChunk implements ShouldQueue
                     'user_id' => $this->userId
                 ]);
                 $skipped++;
+                $batchSkipped++;
+            }
+
+            // Update batch counts if threshold reached
+            if ($batchImported + $batchSkipped >= $batchSize) {
+                $import = DB::table('form_imports')->where('id', $this->importId)->first();
+                if ($import) {
+                    DB::table('form_imports')->where('id', $this->importId)->update([
+                        'imported_count' => $import->imported_count + $batchImported,
+                        'skipped_count' => $import->skipped_count + $batchSkipped,
+                    ]);
+                }
+                $batchImported = 0;
+                $batchSkipped = 0;
+            }
+        }
+
+        // Update remaining batch counts
+        if ($batchImported + $batchSkipped > 0) {
+            $import = DB::table('form_imports')->where('id', $this->importId)->first();
+            if ($import) {
+                DB::table('form_imports')->where('id', $this->importId)->update([
+                    'imported_count' => $import->imported_count + $batchImported,
+                    'skipped_count' => $import->skipped_count + $batchSkipped,
+                ]);
             }
         }
 
         // Update import counts
         if ($this->importId) {
-            DB::table('form_imports')->where('id', $this->importId)->increment('imported_count', $imported);
-            DB::table('form_imports')->where('id', $this->importId)->increment('skipped_count', $skipped);
+            Log::info('Updated import counts', [
+                'import_id' => $this->importId,
+                'imported' => $imported,
+                'skipped' => $skipped
+            ]);
             
             // Check if import is complete
             $import = DB::table('form_imports')->where('id', $this->importId)->first();
@@ -135,6 +179,18 @@ class ProcessFormImportChunk implements ShouldQueue
                     'status' => 'completed',
                     'completed_at' => now(),
                 ]);
+            }
+        }
+
+        // Check if import is complete and update status
+        if ($this->importId) {
+            $import = DB::table('form_imports')->where('id', $this->importId)->first();
+            if ($import && ($import->imported_count + $import->skipped_count) >= $import->total_rows) {
+                DB::table('form_imports')->where('id', $this->importId)->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                ]);
+                Log::info('Import completed', ['import_id' => $this->importId]);
             }
         }
     }

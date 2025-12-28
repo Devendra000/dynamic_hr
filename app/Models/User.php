@@ -14,6 +14,11 @@ class User extends Authenticatable implements JWTSubject
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
     /**
+     * @method bool hasRole(string $role)
+     * @method bool hasAnyRole(array $roles)
+     */
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<int, string>

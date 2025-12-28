@@ -130,6 +130,7 @@ Route::group([
     
     // Form Templates - Excel Template Download
     Route::get('/form-templates/{id}/excel-template', [ExcelController::class, 'downloadTemplate'])->name('admin.form-templates.excel-template');
+    Route::get('/form-templates/{id}/permissions', [ExcelController::class, 'checkTemplatePermissions'])->name('admin.form-templates.permissions');
 
 });
 
@@ -160,6 +161,16 @@ Route::group([
     // Available Forms
     Route::get('/forms', [FormSubmissionController::class, 'availableForms'])->name('employee.forms');
     
+    // Download Excel templates for assigned KYE forms
+    Route::get('/templates/{id}/excel-template', [ExcelController::class, 'downloadTemplate'])->name('employee.templates.excel-template');
+    
+    // Excel Import for employees
+    Route::post('/submissions/import', [ExcelController::class, 'importSubmissions'])->name('employee.submissions.import');
+    Route::post('/submissions/import/validate', [ExcelController::class, 'validateImport'])->name('employee.submissions.import-validate');
+    Route::get('/submissions/imports', [ExcelController::class, 'getUserImports'])->name('employee.submissions.imports');
+    Route::get('/submissions/import/status/{importId}', [ExcelController::class, 'getImportStatus'])->name('employee.submissions.import-status');
+    Route::post('/submissions/import/{importId}/retry', [ExcelController::class, 'retryImport'])->name('employee.submissions.import-retry');
+    
     // Form Submissions
     Route::prefix('submissions')->group(function () {
         Route::get('/', [FormSubmissionController::class, 'index'])->name('employee.submissions.index');
@@ -167,5 +178,8 @@ Route::group([
         Route::get('/{id}', [FormSubmissionController::class, 'show'])->name('employee.submissions.show');
         Route::put('/{id}', [FormSubmissionController::class, 'update'])->name('employee.submissions.update');
         Route::delete('/{id}', [FormSubmissionController::class, 'destroy'])->name('employee.submissions.destroy');
+        
+        // Export employee's own submissions
+        Route::get('/export', [ExcelController::class, 'exportSubmissions'])->name('employee.submissions.export');
     });
 });

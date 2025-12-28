@@ -38,6 +38,9 @@ class FormSubmissionsImport implements ToCollection, WithHeadingRow, WithValidat
      */
     public function collection(Collection $rows)
     {
+        // Apply UTF-8 cleaning to all data before processing
+        $rows = $this->cleanImportCollection($rows);
+
         $chunkSize = 500; // Process 500 rows at a time
         $chunks = $rows->chunk($chunkSize);
         
@@ -282,6 +285,103 @@ class FormSubmissionsImport implements ToCollection, WithHeadingRow, WithValidat
             'skipped' => $this->skipped,
             'errors' => $this->errors
         ];
+    }
+
+    /**
+     * Get imported count
+     */
+    public function getImportedCount(): int
+    {
+        return $this->imported;
+    }
+
+    /**
+     * Get skipped count
+     */
+    public function getSkippedCount(): int
+    {
+        return $this->skipped;
+    }
+
+    /**
+     * Get errors
+     */
+    public function errors(): array
+    {
+        return $this->errors;
+    }
+
+    /**
+     * Clean import collection data for UTF-8 issues
+     */
+    protected function cleanImportCollection(Collection $rows): Collection
+    {
+        return $rows->map(function ($row) {
+            if (!is_array($row) && !is_object($row)) {
+                return $row;
+            }
+
+            $rowArray = is_object($row) ? (array) $row : $row;
+            $cleanedRow = [];
+
+            foreach ($rowArray as $key => $value) {
+                // Clean key (column header)
+                if (is_string($key)) {
+                    $key = strtolower(str_replace(' ', '_', $key));
+                    $key = $this->cleanUtf8($key);
+                    $key = $this->stripInvisibleChars($key);
+                }
+
+                // Clean value (cell data)
+                if (is_string($value)) {
+                    $value = $this->cleanUtf8($value);
+                    $value = $this->stripInvisibleChars($value);
+                }
+
+                $cleanedRow[$key] = $value;
+            }
+
+            // Always return as array for consistent access
+            return $cleanedRow;
+        });
+    }
+
+    /**
+     * Force UTF-8 cleaning (RECOMMENDED)
+     */
+    protected function cleanUtf8($value): string
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        // Detect encoding and convert to UTF-8
+        $detectedEncoding = mb_detect_encoding($value, ['UTF-8', 'ISO-8859-1', 'Windows-1252', 'ASCII'], true);
+        if ($detectedEncoding && $detectedEncoding !== 'UTF-8') {
+            $value = mb_convert_encoding($value, 'UTF-8', $detectedEncoding);
+        }
+
+        // Ensure it's valid UTF-8
+        $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+
+        // Remove invalid UTF-8 sequences
+        $value = iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        return $value;
+    }
+
+    /**
+     * Strip invisible characters
+     */
+    protected function stripInvisibleChars(string $value): string
+    {
+        // Remove control characters (0x00-0x1F and 0x7F-0x9F) but keep newlines and tabs
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', '', $value);
+
+        // Remove zero-width characters and other invisible Unicode
+        $value = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{FEFF}]/u', '', $value);
+
+        return $value;
     }
 
     /**

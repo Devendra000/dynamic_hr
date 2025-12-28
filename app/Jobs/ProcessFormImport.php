@@ -30,7 +30,7 @@ class ProcessFormImport implements ShouldQueue
      *
      * @var int
      */
-    public $tries = 3;
+    public $tries = 1;
 
     /**
      * Number of seconds the job can run before timing out.
@@ -55,7 +55,15 @@ class ProcessFormImport implements ShouldQueue
      */
     public function handle()
     {
+        ini_set('memory_limit', '512M');
+
         try {
+            // Check if this import has already been processed to prevent duplicate processing
+            if ($this->importId && DB::table('form_imports')->where('id', $this->importId)->where('total_rows', '>', 0)->exists()) {
+                Log::info('Import already processed, skipping', ['import_id' => $this->importId]);
+                return;
+            }
+
             Log::info('Starting form import job', [
                 'file' => $this->filePath,
                 'template_id' => $this->formTemplateId,
@@ -70,7 +78,7 @@ class ProcessFormImport implements ShouldQueue
                 ]);
             }
 
-            // Read CSV file and split into chunks
+            // Read file (XLSX or CSV) and split into chunks
             $fullFilePath = Storage::path($this->filePath);
             
             // Debug: Check if file exists
@@ -78,24 +86,69 @@ class ProcessFormImport implements ShouldQueue
                 throw new \Exception("File does not exist at path: {$fullFilePath}");
             }
             
-            Log::info('File exists, reading CSV for chunking', [
+            Log::info('File exists, reading for chunking', [
                 'file_path' => $this->filePath,
                 'full_path' => $fullFilePath,
                 'file_size' => filesize($fullFilePath)
             ]);
             
-            $rows = [];
-            $handle = fopen($fullFilePath, 'r');
-            $header = fgetcsv($handle); // Skip header
-            
-            while (($data = fgetcsv($handle)) !== false) {
-                $row = [];
-                foreach ($header as $index => $column) {
-                    $row[strtolower(str_replace(' ', '_', $column))] = $data[$index] ?? null;
+            // Fix #3: CSV conversion first (VERY EFFECTIVE) - Convert XLSX → CSV for better UTF-8 handling
+            $fileExtension = strtolower(pathinfo($this->filePath, PATHINFO_EXTENSION));
+            $processedFilePath = $fullFilePath;
+
+            if ($fileExtension === 'xlsx') {
+                // Convert XLSX to CSV for better UTF-8 normalization
+                $csvPath = Storage::path('temp/' . uniqid() . '_converted.csv');
+                try {
+                    Excel::store(new \Maatwebsite\Excel\Concerns\FromArray([]), 'temp/temp.csv', 'local');
+                    Excel::convert($fullFilePath, $csvPath, \Maatwebsite\Excel\Excel::XLSX, \Maatwebsite\Excel\Excel::CSV);
+                    $processedFilePath = $csvPath;
+                    Log::info('Converted XLSX to CSV for better UTF-8 handling', ['original' => $fullFilePath, 'converted' => $csvPath]);
+                } catch (\Exception $e) {
+                    Log::warning('XLSX to CSV conversion failed, proceeding with original file', [
+                        'error' => $e->getMessage(),
+                        'file' => $fullFilePath
+                    ]);
+                    // Fall back to original file if conversion fails
                 }
-                $rows[] = $row;
             }
-            fclose($handle);
+
+            // Read the file using Excel package (handles both XLSX and CSV)
+            $data = Excel::toArray([], $processedFilePath); // Don't use HeadingRowImport for CSV
+            $rows = $data[0] ?? [];
+            
+            Log::info('Excel data read', [
+                'data_count' => count($data),
+                'rows_count' => count($rows),
+                'first_row_keys' => !empty($rows) ? array_keys($rows[0] ?? []) : null,
+                'first_row_sample' => !empty($rows) ? array_slice($rows[0] ?? [], 0, 3) : null
+            ]);
+            
+            // Handle headers manually for CSV
+            if (!empty($rows)) {
+                $headers = array_shift($rows); // Remove first row as headers
+                $rows = array_map(function ($row) use ($headers) {
+                    return array_combine($headers, $row);
+                }, $rows);
+            }
+            
+            // Remove header row if present and ensure UTF-8 encoding
+            if (!empty($rows) && is_array($rows[0])) {
+                $firstRow = $rows[0];
+                $hasHeader = false;
+                foreach ($firstRow as $key => $value) {
+                    if (is_string($key) && !is_numeric($key)) {
+                        $hasHeader = true;
+                        break;
+                    }
+                }
+                if (!$hasHeader) {
+                    array_shift($rows); // Remove header row
+                }
+            }
+            
+            // Ensure all data is UTF-8 encoded
+            $rows = $this->cleanImportData($rows);
             
             $totalRows = count($rows);
             
@@ -115,14 +168,11 @@ class ProcessFormImport implements ShouldQueue
                 \App\Jobs\ProcessFormImportChunk::dispatch($this->formTemplateId, $this->userId, $this->importId, $chunk);
             }
 
-            // Note: Status remains 'processing' until all chunks complete
-            // Chunks will update imported_count; user can monitor progress
-
-            Log::info('Form import chunks dispatched', [
-                'template_id' => $this->formTemplateId,
-                'user_id' => $this->userId,
-                'total_chunks' => count($chunks)
-            ]);
+            // Clean up temporary CSV file if it was created
+            if (isset($csvPath) && $csvPath !== $fullFilePath && file_exists($csvPath)) {
+                unlink($csvPath);
+                Log::info('Cleaned up temporary CSV file', ['file' => $csvPath]);
+            }
 
         } catch (\Exception $e) {
             Log::error('Form import job failed', [
@@ -133,10 +183,14 @@ class ProcessFormImport implements ShouldQueue
 
             // Update import status to failed
             if ($this->importId) {
+                // Ensure error message is UTF-8 encoded
+                $errorMessage = $this->cleanUtf8($e->getMessage());
+                $errorMessage = $this->stripInvisibleChars($errorMessage);
+
                 DB::table('form_imports')->where('id', $this->importId)->update([
                     'status' => 'failed',
                     'completed_at' => now(),
-                    'errors' => json_encode([['error' => $e->getMessage()]]),
+                    'errors' => json_encode([['error' => $errorMessage]], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
                 ]);
             }
 
@@ -379,10 +433,14 @@ class ProcessFormImport implements ShouldQueue
 
         // Update import status to failed
         if ($this->importId) {
+            // Ensure error message is UTF-8 encoded
+            $errorMessage = $this->cleanUtf8($exception->getMessage());
+            $errorMessage = $this->stripInvisibleChars($errorMessage);
+
             DB::table('form_imports')->where('id', $this->importId)->update([
                 'status' => 'failed',
                 'completed_at' => now(),
-                'errors' => json_encode([['error' => $exception->getMessage()]]),
+                'errors' => json_encode([['error' => $errorMessage]], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
             ]);
         }
 
@@ -390,5 +448,73 @@ class ProcessFormImport implements ShouldQueue
         // if (Storage::exists($this->filePath)) {
         //     Storage::delete($this->filePath);
         // }
+    }
+
+    /**
+     * Comprehensive data cleaning for Excel imports (multiple UTF-8 fixes)
+     */
+    protected function cleanImportData(array $rows): array
+    {
+        return array_map(function ($row) {
+            if (!is_array($row)) {
+                return $row;
+            }
+
+            $cleanedRow = [];
+            foreach ($row as $key => $value) {
+                // Clean key (column header)
+                if (is_string($key)) {
+                    $key = $this->cleanUtf8($key);
+                    $key = $this->stripInvisibleChars($key);
+                }
+
+                // Clean value (cell data)
+                if (is_string($value)) {
+                    $value = $this->cleanUtf8($value);
+                    $value = $this->stripInvisibleChars($value);
+                }
+
+                $cleanedRow[$key] = $value;
+            }
+            return $cleanedRow;
+        }, $rows);
+    }
+
+    /**
+     * Fix #1: Force UTF-8 cleaning (RECOMMENDED)
+     */
+    protected function cleanUtf8($value): string
+    {
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        // Detect encoding and convert to UTF-8
+        $detectedEncoding = mb_detect_encoding($value, ['UTF-8', 'ISO-8859-1', 'Windows-1252', 'ASCII'], true);
+        if ($detectedEncoding && $detectedEncoding !== 'UTF-8') {
+            $value = mb_convert_encoding($value, 'UTF-8', $detectedEncoding);
+        }
+
+        // Ensure it's valid UTF-8
+        $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+
+        // Remove invalid UTF-8 sequences
+        $value = iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+        return $value;
+    }
+
+    /**
+     * Fix #2: Strip invisible characters
+     */
+    protected function stripInvisibleChars(string $value): string
+    {
+        // Remove control characters (0x00-0x1F and 0x7F-0x9F) but keep newlines and tabs
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/u', '', $value);
+
+        // Remove zero-width characters and other invisible Unicode
+        $value = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{FEFF}]/u', '', $value);
+
+        return $value;
     }
 }

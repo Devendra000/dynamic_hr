@@ -18,6 +18,9 @@ class QueuedFormSubmissionsImport implements ToModel, WithHeadingRow, WithChunkR
     protected $userId;
     protected $importId;
     protected $formTemplate;
+    protected $imported = 0;
+    protected $skipped = 0;
+    protected $errors = [];
 
     public function __construct($formTemplateId, $userId, $importId = null)
     {
@@ -29,6 +32,14 @@ class QueuedFormSubmissionsImport implements ToModel, WithHeadingRow, WithChunkR
 
     public function model(array $row)
     {
+        // Normalize row keys to match field labels
+        $normalizedRow = [];
+        foreach ($row as $key => $value) {
+            $normalizedKey = strtolower(str_replace(' ', '_', $key));
+            $normalizedRow[$normalizedKey] = $value;
+        }
+        $row = $normalizedRow;
+
         // Debug: Log the first row to see what keys are available
         static $debugLogged = false;
         if (!$debugLogged) {
@@ -50,6 +61,11 @@ class QueuedFormSubmissionsImport implements ToModel, WithHeadingRow, WithChunkR
                         'user_id' => $this->userId,
                         'field' => $field->label
                     ]);
+                    $this->skipped++;
+                    $this->errors[] = [
+                        'row' => 'unknown', // ToModel doesn't have row numbers
+                        'error' => "Required field '{$field->label}' is missing"
+                    ];
                     return null; // Skip this row
                 }
 
@@ -62,6 +78,11 @@ class QueuedFormSubmissionsImport implements ToModel, WithHeadingRow, WithChunkR
                             'field' => $field->label,
                             'value' => $value
                         ]);
+                        $this->skipped++;
+                        $this->errors[] = [
+                            'row' => 'unknown',
+                            'error' => "Validation failed for field '{$field->label}': {$validationError}"
+                        ];
                         return null; // Skip this row
                     }
 
@@ -97,6 +118,8 @@ class QueuedFormSubmissionsImport implements ToModel, WithHeadingRow, WithChunkR
                     DB::table('form_imports')->where('id', $this->importId)->increment('imported_count');
                 }
 
+                $this->imported++;
+
                 return null; // Don't return a model for ToModel batching
             }
 
@@ -112,6 +135,12 @@ class QueuedFormSubmissionsImport implements ToModel, WithHeadingRow, WithChunkR
             if ($this->importId) {
                 DB::table('form_imports')->where('id', $this->importId)->increment('skipped_count');
             }
+
+            $this->skipped++;
+            $this->errors[] = [
+                'row' => 'unknown',
+                'error' => $e->getMessage()
+            ];
 
             return null;
         }
@@ -179,5 +208,20 @@ class QueuedFormSubmissionsImport implements ToModel, WithHeadingRow, WithChunkR
     public function chunkSize(): int
     {
         return 500; // Read 500 rows at a time from file
+    }
+
+    public function getImportedCount(): int
+    {
+        return $this->imported;
+    }
+
+    public function getSkippedCount(): int
+    {
+        return $this->skipped;
+    }
+
+    public function errors(): array
+    {
+        return $this->errors;
     }
 }

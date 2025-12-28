@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Exports\FormSubmissionsExport;
 use App\Exports\FormTemplateExport;
 use App\Imports\FormSubmissionsImport;
+use App\Imports\QueuedFormSubmissionsImport;
 use App\Jobs\ProcessFormImport;
 use App\Models\FormImport;
 use App\Models\FormSubmission;
@@ -71,6 +72,57 @@ class ExcelController extends Controller
      *         @OA\MediaType(
      *             mediaType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
      *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - No permission to export submissions"
+     *     )
+     * )
+     *
+     * @OA\Get(
+     *     path="/employee/submissions/export",
+     *     tags={"Excel Import/Export"},
+     *     summary="Export my submissions to Excel",
+     *     description="Download employee's own form submissions as Excel file",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="form_template_id",
+     *         in="query",
+     *         description="Filter by template ID",
+     *         required=false,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Parameter(
+     *         name="status",
+     *         in="query",
+     *         description="Filter by status",
+     *         required=false,
+     *         @OA\Schema(type="string", enum={"draft", "submitted", "approved", "rejected"})
+     *     ),
+     *     @OA\Parameter(
+     *         name="date_from",
+     *         in="query",
+     *         description="Filter from date (YYYY-MM-DD)",
+     *         required=false,
+     *         @OA\Schema(type="string", format="date")
+     *     ),
+     *     @OA\Parameter(
+     *         name="date_to",
+     *         in="query",
+     *         description="Filter to date (YYYY-MM-DD)",
+     *         required=false,
+     *         @OA\Schema(type="string", format="date")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Excel file download",
+     *         @OA\MediaType(
+     *             mediaType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - No permission to export submissions"
      *     )
      * )
      */
@@ -83,11 +135,33 @@ class ExcelController extends Controller
         try {
             $filters = $request->only(['form_template_id', 'status', 'user_id', 'date_from', 'date_to']);
             
-            // Validate form_template_id if provided
+            // Validate form_template_id if provided and check permissions
             if (!empty($filters['form_template_id'])) {
                 $template = FormTemplate::find($filters['form_template_id']);
                 if (!$template) {
                     return $this->notFoundResponse('Form template not found');
+                }
+
+                // Check permissions for user-specific templates
+                $user = auth()->user();
+                if ($template->isUserSpecific()) {
+                    if ($template->template_type === FormTemplate::TEMPLATE_TYPE_KYE) {
+                        // KYE templates: Only the assigned employee can export their own submissions
+                        if ($template->assigned_to !== $user->id) {
+                            return $this->forbiddenResponse('You do not have permission to export submissions from this assessment form');
+                        }
+                    } elseif ($template->template_type === FormTemplate::TEMPLATE_TYPE_KYA) {
+                        // KYA templates: Only Admin and HR can export evaluation submissions
+                        if (!$user->hasRole(['admin', 'hr'])) {
+                            return $this->forbiddenResponse('Only administrators and HR personnel can export evaluation submissions');
+                        }
+                    }
+                } else {
+                    // Main templates: Admin/HR can export all submissions, employees can only export their own
+                    if (!$user->hasRole(['admin', 'hr'])) {
+                        // Force filter to only user's own submissions for main templates
+                        $filters['user_id'] = $user->id;
+                    }
                 }
             }
             
@@ -147,7 +221,104 @@ class ExcelController extends Controller
     }
 
     /**
-     * Download Excel template for a form
+     * Check template permissions for debugging
+     *
+     * @OA\Get(
+     *     path="/admin/form-templates/{id}/permissions",
+     *     tags={"Excel Import/Export"},
+     *     summary="Check template permissions",
+     *     description="Debug endpoint to check template permissions and user roles",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Form template ID",
+     *         required=true,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Permission details"
+     *     )
+     * )
+     */
+    public function checkTemplatePermissions(string $id): JsonResponse
+    {
+        try {
+            $template = FormTemplate::findOrFail($id);
+            $user = auth()->user();
+
+            $permissions = [
+                'template' => [
+                    'id' => $template->id,
+                    'title' => $template->title,
+                    'type' => $template->template_type,
+                    'is_user_specific' => $template->isUserSpecific(),
+                    'assigned_to' => $template->assigned_to,
+                    'status' => $template->status,
+                ],
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'roles' => $user->roles->pluck('name')->toArray(),
+                    'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+                    'has_admin_role' => $user->hasRole('admin'),
+                    'has_hr_role' => $user->hasRole('hr'),
+                ],
+                'access_checks' => [
+                    'is_user_specific' => $template->isUserSpecific(),
+                    'is_kye_template' => $template->template_type === FormTemplate::TEMPLATE_TYPE_KYE,
+                    'is_kya_template' => $template->template_type === FormTemplate::TEMPLATE_TYPE_KYA,
+                    'is_main_template' => $template->template_type === FormTemplate::TEMPLATE_TYPE_MAIN,
+                    'is_assigned_to_user' => $template->assigned_to === $user->id,
+                    'user_has_admin_hr_roles' => $user->hasRole(['admin', 'hr']),
+                    'template_is_active' => $template->status === FormTemplate::STATUS_ACTIVE,
+                ],
+                'can_download' => false,
+                'reason' => ''
+            ];
+
+            // Determine if user can download
+            if ($template->isUserSpecific()) {
+                if ($template->template_type === FormTemplate::TEMPLATE_TYPE_KYE) {
+                    if ($template->assigned_to === $user->id) {
+                        $permissions['can_download'] = true;
+                        $permissions['reason'] = 'User is assigned to this KYE template';
+                    } else {
+                        $permissions['reason'] = 'KYE templates can only be downloaded by the assigned employee';
+                    }
+                } elseif ($template->template_type === FormTemplate::TEMPLATE_TYPE_KYA) {
+                    if ($user->hasRole(['admin', 'hr'])) {
+                        $permissions['can_download'] = true;
+                        $permissions['reason'] = 'User has admin or HR role for KYA template';
+                    } else {
+                        $permissions['reason'] = 'KYA templates can only be downloaded by admin or HR personnel';
+                    }
+                }
+            } else {
+                if ($user->hasRole(['admin', 'hr'])) {
+                    $permissions['can_download'] = true;
+                    $permissions['reason'] = 'User has admin or HR role for main template';
+                } elseif ($template->status === FormTemplate::STATUS_ACTIVE) {
+                    $permissions['can_download'] = true;
+                    $permissions['reason'] = 'Main template is active and user can download';
+                } else {
+                    $permissions['reason'] = 'Main template is not active';
+                }
+            }
+
+            return $this->successResponse('Permission check completed', $permissions);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return $this->notFoundResponse('Form template not found');
+        } catch (\Exception $e) {
+            return $this->serverErrorResponse('Failed to check permissions', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Download Excel template
      *
      * @OA\Get(
      *     path="/admin/form-templates/{id}/excel-template",
@@ -169,14 +340,97 @@ class ExcelController extends Controller
      *             mediaType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
      *         )
      *     ),
-     *     @OA\Response(response=404, description="Form template not found")
+     *     @OA\Response(
+     *         response=404,
+     *         description="Form template not found"
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - No permission to download template"
+     *     )
+     * )
+     *
+     * @OA\Get(
+     *     path="/employee/templates/{id}/excel-template",
+     *     tags={"Excel Import/Export"},
+     *     summary="Download Excel template for KYE forms",
+     *     description="Download Excel template for assigned KYE (Know Your Employee) forms",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Form template ID",
+     *         required=true,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Excel template download",
+     *         @OA\MediaType(
+     *             mediaType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Form template not found"
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - Not assigned to this KYE template"
+     *     )
      * )
      */
     public function downloadTemplate(string $id): BinaryFileResponse|JsonResponse
     {
         try {
             $template = FormTemplate::with('fields')->findOrFail($id);
-            
+            $user = auth()->user();
+
+            // Debug logging for permissions
+            Log::info('Template download permission check', [
+                'template_id' => $id,
+                'template_type' => $template->template_type,
+                'template_assigned_to' => $template->assigned_to,
+                'is_user_specific' => $template->isUserSpecific(),
+                'user_id' => $user->id,
+                'user_roles' => $user->roles->pluck('name')->toArray(),
+                'user_permissions' => $user->getAllPermissions()->pluck('name')->toArray()
+            ]);
+
+            // Check permissions for user-specific templates
+            if ($template->isUserSpecific()) {
+                if ($template->template_type === FormTemplate::TEMPLATE_TYPE_KYE) {
+                    // KYE templates: Only the assigned employee can download
+                    if ($template->assigned_to !== $user->id) {
+                        Log::warning('KYE template download denied', [
+                            'template_id' => $id,
+                            'assigned_to' => $template->assigned_to,
+                            'user_id' => $user->id,
+                            'user_roles' => $user->roles->pluck('name')->toArray()
+                        ]);
+                        return $this->forbiddenResponse('You do not have permission to download this assessment form template. Only the assigned employee can download KYE templates.');
+                    }
+                } elseif ($template->template_type === FormTemplate::TEMPLATE_TYPE_KYA) {
+                    // KYA templates: Only Admin and HR can download
+                    if (!$user->hasRole(['admin', 'hr'])) {
+                        Log::warning('KYA template download denied', [
+                            'template_id' => $id,
+                            'user_roles' => $user->roles->pluck('name')->toArray()
+                        ]);
+                        return $this->forbiddenResponse('Only administrators and HR personnel can download evaluation form templates.');
+                    }
+                }
+            } else {
+                // Main templates: Admin/HR can download, employees can only download if they have access to submit
+                if (!$user->hasRole(['admin', 'hr'])) {
+                    // For main templates, employees can download if the template is active
+                    // This allows them to see what fields are required
+                    if ($template->status !== FormTemplate::STATUS_ACTIVE) {
+                        return $this->forbiddenResponse('This form template is not currently available');
+                    }
+                }
+            }
+
             $fileName = str_replace(' ', '_', strtolower($template->title)) . '_template_' . date('Y-m-d') . '.xlsx';
 
             Log::info('Downloading form template', [
@@ -233,9 +487,101 @@ class ExcelController extends Controller
      *     ),
      *     @OA\Response(
      *         response=200,
-     *         description="Import completed with statistics"
+     *         description="Import completed with statistics (small files) or background job started (large files)",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     type="object",
+     *                     @OA\Property(property="success", type="boolean", example=true),
+     *                     @OA\Property(property="message", type="string", example="Import completed successfully"),
+     *                     @OA\Property(property="data", type="object",
+     *                         @OA\Property(property="imported", type="integer", example=150),
+     *                         @OA\Property(property="skipped", type="integer", example=5),
+     *                         @OA\Property(property="errors", type="array", @OA\Items(type="string")),
+     *                         @OA\Property(property="method", type="string", example="direct")
+     *                     )
+     *                 ),
+     *                 @OA\Schema(
+     *                     type="object",
+     *                     @OA\Property(property="success", type="boolean", example=true),
+     *                     @OA\Property(property="message", type="string", example="Import started successfully. Processing in background."),
+     *                     @OA\Property(property="data", type="object",
+     *                         @OA\Property(property="import_id", type="integer", example=123),
+     *                         @OA\Property(property="method", type="string", example="background"),
+     *                         @OA\Property(property="note", type="string", example="Large file detected - processing in background for better performance")
+     *                     )
+     *                 )
+     *             }
+     *         )
      *     ),
-     *     @OA\Response(response=422, description="Validation error")
+     *     @OA\Response(response=422, description="Validation error"),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - No permission to import submissions"
+     *     )
+     * )
+     *
+     * @OA\Post(
+     *     path="/employee/submissions/import",
+     *     tags={"Excel Import/Export"},
+     *     summary="Import submissions from Excel",
+     *     description="Upload and import form submissions from Excel file for assigned templates",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\MediaType(
+     *             mediaType="multipart/form-data",
+     *             @OA\Schema(
+     *                 required={"file", "form_template_id"},
+     *                 @OA\Property(
+     *                     property="file",
+     *                     type="string",
+     *                     format="binary",
+     *                     description="Excel file (.xlsx or .xls)"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="form_template_id",
+     *                     type="integer",
+     *                     description="Form template ID (must be assigned to user for KYE forms)",
+     *                     example=1
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Import completed with statistics (small files) or background job started (large files)",
+     *         @OA\JsonContent(
+     *             oneOf={
+     *                 @OA\Schema(
+     *                     type="object",
+     *                     @OA\Property(property="success", type="boolean", example=true),
+     *                     @OA\Property(property="message", type="string", example="Import completed successfully"),
+     *                     @OA\Property(property="data", type="object",
+     *                         @OA\Property(property="imported", type="integer", example=1),
+     *                         @OA\Property(property="skipped", type="integer", example=0),
+     *                         @OA\Property(property="errors", type="array", @OA\Items(type="string")),
+     *                         @OA\Property(property="method", type="string", example="direct")
+     *                     )
+     *                 ),
+     *                 @OA\Schema(
+     *                     type="object",
+     *                     @OA\Property(property="success", type="boolean", example=true),
+     *                     @OA\Property(property="message", type="string", example="Import started successfully. Processing in background."),
+     *                     @OA\Property(property="data", type="object",
+     *                         @OA\Property(property="import_id", type="integer", example=123),
+     *                         @OA\Property(property="method", type="string", example="background"),
+     *                         @OA\Property(property="note", type="string", example="Large file detected - processing in background for better performance")
+     *                     )
+     *                 )
+     *             }
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="Validation error"),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - No permission to import to this template"
+     *     )
      * )
      */
     public function importSubmissions(Request $request): JsonResponse
@@ -303,54 +649,47 @@ class ExcelController extends Controller
                 );
             }
 
-            $file = $request->file('file');
-            
-            // Step 1: Store file first (fast upload)
-            $filename = 'imports/' . uniqid() . '_' . time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('imports', basename($filename));
-
-            // Step 2: Validate headers from stored file
-            $storedFilePath = Storage::path($filePath);
-            $headerValidation = $this->validateImportHeadersFromPath($storedFilePath, $formTemplate);
-            if (!$headerValidation['valid']) {
-                // Delete the uploaded file since headers are invalid
-                Storage::delete($filePath);
-                return $this->validationErrorResponse(
-                    'Invalid file headers',
-                    ['headers' => $headerValidation['errors']]
-                );
+            // Check permissions for user-specific templates
+            $user = auth()->user();
+            if ($formTemplate->isUserSpecific()) {
+                if ($formTemplate->template_type === FormTemplate::TEMPLATE_TYPE_KYE) {
+                    // KYE templates: Only the assigned employee can import their own submissions
+                    if ($formTemplate->assigned_to !== $user->id) {
+                        return $this->forbiddenResponse('You do not have permission to import submissions to this assessment form');
+                    }
+                } elseif ($formTemplate->template_type === FormTemplate::TEMPLATE_TYPE_KYA) {
+                    // KYA templates: Only Admin and HR can import evaluation submissions
+                    if (!$user->hasRole(['admin', 'hr'])) {
+                        return $this->forbiddenResponse('Only administrators and HR personnel can import evaluation submissions');
+                    }
+                }
+            } else {
+                // Main templates: Admin/HR can import for anyone, employees can only import their own submissions
+                if (!$user->hasRole(['admin', 'hr'])) {
+                    // For main templates, employees can only import if they have submissions to that template
+                    // This is a business rule - employees typically shouldn't bulk import to main templates
+                    return $this->forbiddenResponse('You do not have permission to import submissions to this form template');
+                }
             }
 
-            // Step 3: Create import record
-            $importId = DB::table('form_imports')->insertGetId([
-                'form_template_id' => $validated['form_template_id'],
-                'user_id' => auth()->id(),
-                'filename' => $file->getClientOriginalName(),
-                'file_path' => $filePath,
-                'status' => 'pending',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+            $file = $request->file('file');
 
-            // Step 4: Dispatch job to queue
-            ProcessFormImport::dispatch(
-                $filePath,
-                $validated['form_template_id'],
-                auth()->id(),
-                $importId
-            );
+            // Step 1: Store file temporarily to count rows
+            $tempFilename = 'temp_' . uniqid() . '_' . time() . '_' . $file->getClientOriginalName();
+            $tempFilePath = $file->storeAs('temp', $tempFilename);
+            $storedTempPath = Storage::path($tempFilePath);
 
-            Log::info('Form import job dispatched', [
-                'template_id' => $validated['form_template_id'],
-                'import_id' => $importId,
-                'user_id' => auth()->id()
-            ]);
+            // Step 2: Count total rows in the file
+            $totalRows = $this->countRowsInFile($storedTempPath);
 
-            return $this->successResponse('Import started successfully. Processing in background.', [
-                'import_id' => $importId,
-                'status' => 'pending',
-                'message' => 'Your file is being processed. You can check the status using the import ID.'
-            ]);
+            // Step 3: Decide import strategy based on row count
+            if ($totalRows < 1000) {
+                // Small file - import directly
+                return $this->importDirectly($storedTempPath, $validated['form_template_id'], $formTemplate, $file->getClientOriginalName());
+            } else {
+                // Large file - use background processing
+                return $this->importViaBackgroundJob($tempFilePath, $validated['form_template_id'], $formTemplate, $file->getClientOriginalName(), $tempFilename);
+            }
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->validationErrorResponse('Validation failed', $e->errors());
@@ -399,6 +738,46 @@ class ExcelController extends Controller
      *     @OA\Response(
      *         response=200,
      *         description="Validation results with preview"
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - No permission to validate imports"
+     *     )
+     * )
+     *
+     * @OA\Post(
+     *     path="/employee/submissions/import/validate",
+     *     tags={"Excel Import/Export"},
+     *     summary="Validate Excel import",
+     *     description="Preview and validate Excel file before actual import for assigned templates",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\MediaType(
+     *             mediaType="multipart/form-data",
+     *             @OA\Schema(
+     *                 required={"file", "form_template_id"},
+     *                 @OA\Property(
+     *                     property="file",
+     *                     type="string",
+     *                     format="binary",
+     *                     description="Excel file (.xlsx or .xls)"
+     *                 ),
+     *                 @OA\Property(
+     *                     property="form_template_id",
+     *                     type="integer",
+     *                     description="Form template ID (must be assigned to user for KYE forms)"
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Validation results with preview"
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - No permission to validate imports for this template"
      *     )
      * )
      */
@@ -452,6 +831,28 @@ class ExcelController extends Controller
             ]);
 
             $formTemplate = FormTemplate::with('fields')->findOrFail($validated['form_template_id']);
+
+            // Check permissions for user-specific templates
+            $user = auth()->user();
+            if ($formTemplate->isUserSpecific()) {
+                if ($formTemplate->template_type === FormTemplate::TEMPLATE_TYPE_KYE) {
+                    // KYE templates: Only the assigned employee can validate imports
+                    if ($formTemplate->assigned_to !== $user->id) {
+                        return $this->forbiddenResponse('You do not have permission to validate imports for this assessment form');
+                    }
+                } elseif ($formTemplate->template_type === FormTemplate::TEMPLATE_TYPE_KYA) {
+                    // KYA templates: Only Admin and HR can validate evaluation imports
+                    if (!$user->hasRole(['admin', 'hr'])) {
+                        return $this->forbiddenResponse('Only administrators and HR personnel can validate evaluation form imports');
+                    }
+                }
+            } else {
+                // Main templates: Admin/HR can validate for anyone, employees cannot validate imports
+                if (!$user->hasRole(['admin', 'hr'])) {
+                    return $this->forbiddenResponse('You do not have permission to validate imports for this form template');
+                }
+            }
+
             $file = $request->file('file');
 
             // For large files, skip full validation (too slow)
@@ -695,14 +1096,65 @@ class ExcelController extends Controller
      *     @OA\Response(response=404, description="Import not found"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
+     *
+     * @OA\Get(
+     *     path="/employee/submissions/import/status/{importId}",
+     *     tags={"Excel Import/Export"},
+     *     summary="Get import status",
+     *     description="Get the status of a background import job",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="importId",
+     *         in="path",
+     *         required=true,
+     *         description="Import ID",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Import status retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Import status retrieved"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="status", type="string"),
+     *                 @OA\Property(property="filename", type="string"),
+     *                 @OA\Property(property="imported_count", type="integer"),
+     *                 @OA\Property(property="skipped_count", type="integer"),
+     *                 @OA\Property(property="errors", type="array", @OA\Items(type="object"))
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Import not found"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function getImportStatus($importId): JsonResponse
     {
         try {
-            $import = DB::table('form_imports')
-                ->where('id', $importId)
-                ->where('user_id', auth()->id())
-                ->first();
+            $user = auth()->user();
+            
+            $query = DB::table('form_imports')
+                ->join('form_templates', 'form_imports.form_template_id', '=', 'form_templates.id')
+                ->where('form_imports.id', $importId)
+                ->where('form_imports.user_id', $user->id)
+                ->select('form_imports.*', 'form_templates.template_type', 'form_templates.assigned_to');
+
+            // For KYE templates, ensure user is assigned to the template
+            if (!$user->hasRole(['admin', 'hr'])) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('form_templates.template_type', '!=', FormTemplate::TEMPLATE_TYPE_KYE)
+                      ->orWhere(function ($subQ) use ($user) {
+                          $subQ->where('form_templates.template_type', FormTemplate::TEMPLATE_TYPE_KYE)
+                               ->where('form_templates.assigned_to', $user->id);
+                      });
+                });
+            }
+
+            $import = $query->first();
 
             if (!$import) {
                 return $this->notFoundResponse('Import not found');
@@ -760,16 +1212,55 @@ class ExcelController extends Controller
      *     ),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
+     *
+     * @OA\Get(
+     *     path="/employee/submissions/imports",
+     *     tags={"Excel Import/Export"},
+     *     summary="Get user imports",
+     *     description="Get all imports for the authenticated user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="status",
+     *         in="query",
+     *         description="Filter by status",
+     *         @OA\Schema(type="string", enum={"pending", "processing", "completed", "failed"})
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Imports retrieved",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Imports retrieved"),
+     *             @OA\Property(property="data", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function getUserImports(Request $request): JsonResponse
     {
         try {
+            $user = auth()->user();
+            
             $query = DB::table('form_imports')
-                ->where('user_id', auth()->id())
-                ->orderBy('created_at', 'desc');
+                ->join('form_templates', 'form_imports.form_template_id', '=', 'form_templates.id')
+                ->where('form_imports.user_id', $user->id)
+                ->select('form_imports.*', 'form_templates.template_type', 'form_templates.assigned_to')
+                ->orderBy('form_imports.created_at', 'desc');
+
+            // For KYE templates, ensure user is assigned to the template
+            if (!$user->hasRole(['admin', 'hr'])) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('form_templates.template_type', '!=', FormTemplate::TEMPLATE_TYPE_KYE)
+                      ->orWhere(function ($subQ) use ($user) {
+                          $subQ->where('form_templates.template_type', FormTemplate::TEMPLATE_TYPE_KYE)
+                               ->where('form_templates.assigned_to', $user->id);
+                      });
+                });
+            }
 
             if ($request->has('status')) {
-                $query->where('status', $request->status);
+                $query->where('form_imports.status', $request->status);
             }
 
             $imports = $query->get()->map(function ($import) {
@@ -836,13 +1327,57 @@ class ExcelController extends Controller
      *     @OA\Response(response=404, description="Import not found"),
      *     @OA\Response(response=401, description="Unauthenticated")
      * )
+     *
+     * @OA\Post(
+     *     path="/employee/submissions/import/{importId}/retry",
+     *     tags={"Excel Import/Export"},
+     *     summary="Retry failed import",
+     *     description="Retry a failed import job",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="importId",
+     *         in="path",
+     *         required=true,
+     *         description="Import ID",
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Import retry initiated",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Import retry initiated"),
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="import_id", type="integer", example=1)
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(response=400, description="Import is not failed or already processing"),
+     *     @OA\Response(response=404, description="Import not found"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function retryImport(int $importId): JsonResponse
     {
         try {
-            $import = FormImport::where('id', $importId)
-                ->where('user_id', auth()->id())
-                ->first();
+            $user = auth()->user();
+            
+            $query = FormImport::with('formTemplate')
+                ->where('id', $importId)
+                ->where('user_id', $user->id);
+
+            // For KYE templates, ensure user is assigned to the template
+            if (!$user->hasRole(['admin', 'hr'])) {
+                $query->whereHas('formTemplate', function ($q) use ($user) {
+                    $q->where('template_type', '!=', FormTemplate::TEMPLATE_TYPE_KYE)
+                      ->orWhere(function ($subQ) use ($user) {
+                          $subQ->where('template_type', FormTemplate::TEMPLATE_TYPE_KYE)
+                               ->where('assigned_to', $user->id);
+                      });
+                });
+            }
+
+            $import = $query->first();
 
             if (!$import) {
                 return $this->notFoundResponse('Import not found');
@@ -887,6 +1422,193 @@ class ExcelController extends Controller
 
             return $this->serverErrorResponse(
                 'Failed to retry import',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
+        }
+    }
+
+    /**
+     * Count total rows in an Excel/CSV file
+     */
+    protected function countRowsInFile(string $filePath): int
+    {
+        try {
+            // Use a simple approach to count rows
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $highestRow = $worksheet->getHighestRow();
+
+            return max(0, $highestRow - 1); // Subtract 1 for header row
+        } catch (\Exception $e) {
+            Log::warning('Failed to count rows in file using PhpSpreadsheet', [
+                'file_path' => $filePath,
+                'error' => $e->getMessage()
+            ]);
+
+            // Fallback: try to read as CSV
+            try {
+                $handle = fopen($filePath, 'r');
+                $rowCount = 0;
+                while (($data = fgetcsv($handle)) !== false) {
+                    $rowCount++;
+                }
+                fclose($handle);
+                return max(0, $rowCount - 1); // Subtract 1 for header row
+            } catch (\Exception $e2) {
+                Log::warning('Failed to count rows in file using CSV fallback', [
+                    'file_path' => $filePath,
+                    'error' => $e2->getMessage()
+                ]);
+                return 0;
+            }
+        }
+    }
+
+    /**
+     * Import file directly (for small files < 1000 rows)
+     */
+    protected function importDirectly(string $filePath, int $formTemplateId, $formTemplate, string $originalFilename): JsonResponse
+    {
+        try {
+            // Validate headers from stored file
+            $headerValidation = $this->validateImportHeadersFromPath($filePath, $formTemplate);
+            if (!$headerValidation['valid']) {
+                // Delete the uploaded file since headers are invalid
+                Storage::delete($filePath);
+                return $this->validationErrorResponse(
+                    'Invalid file headers',
+                    ['headers' => $headerValidation['errors']]
+                );
+            }
+
+            // Import directly using QueuedFormSubmissionsImport
+            $import = new QueuedFormSubmissionsImport($formTemplateId, auth()->id());
+            Excel::import($import, $filePath);
+
+            // Clean up temp file
+            Storage::delete($filePath);
+
+            Log::info('Direct import completed', [
+                'template_id' => $formTemplateId,
+                'user_id' => auth()->id(),
+                'filename' => $originalFilename,
+                'imported' => $import->getImportedCount(),
+                'skipped' => $import->getSkippedCount()
+            ]);
+
+            return $this->successResponse('Import completed successfully', [
+                'imported' => $import->getImportedCount(),
+                'skipped' => $import->getSkippedCount(),
+                'errors' => $import->errors(),
+                'method' => 'direct'
+            ]);
+
+        } catch (\Exception $e) {
+            // Clean up temp file on error
+            Storage::delete($filePath);
+
+            Log::error('Direct import failed', [
+                'error' => $e->getMessage(),
+                'template_id' => $formTemplateId,
+                'user_id' => auth()->id()
+            ]);
+
+            return $this->serverErrorResponse(
+                'Import failed',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
+        }
+    }
+
+    /**
+     * Import file via background job (for large files >= 1000 rows)
+     */
+    protected function importViaBackgroundJob(string $tempFilePath, int $formTemplateId, $formTemplate, string $originalFilename, string $tempFilename): JsonResponse
+    {
+        try {
+            // Get full path for validation
+            $fullTempPath = Storage::path($tempFilePath);
+            
+            // Validate headers from temp file
+            $headerValidation = $this->validateImportHeadersFromPath($fullTempPath, $formTemplate);
+            if (!$headerValidation['valid']) {
+                // Delete the uploaded file since headers are invalid
+                Storage::delete($tempFilePath);
+                return $this->validationErrorResponse(
+                    'Invalid file headers',
+                    ['headers' => $headerValidation['errors']]
+                );
+            }
+
+            // Move file from temp to imports directory
+            $finalFilename = 'imports/' . uniqid() . '_' . time() . '_' . $originalFilename;
+            
+            // Ensure imports directory exists
+            Storage::makeDirectory('imports');
+            
+            Log::info('Moving file from temp to imports', [
+                'from' => $tempFilePath,
+                'to' => $finalFilename
+            ]);
+            
+            // Use Storage::move with relative paths
+            $moveResult = Storage::move($tempFilePath, $finalFilename);
+            
+            if (!$moveResult) {
+                Log::error('Storage::move failed');
+                Storage::delete($tempFilePath);
+                return $this->serverErrorResponse('Failed to prepare file for import');
+            }
+            
+            Log::info('File moved successfully', [
+                'from' => $tempFilePath,
+                'to' => $finalFilename
+            ]);
+
+            // Create import record
+            $importId = DB::table('form_imports')->insertGetId([
+                'form_template_id' => $formTemplateId,
+                'user_id' => auth()->id(),
+                'filename' => $originalFilename,
+                'file_path' => $finalFilename,
+                'status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Dispatch job to queue
+            ProcessFormImport::dispatch(
+                $finalFilename,
+                $formTemplateId,
+                auth()->id(),
+                $importId
+            );
+
+            Log::info('Background import job dispatched', [
+                'template_id' => $formTemplateId,
+                'import_id' => $importId,
+                'user_id' => auth()->id(),
+                'method' => 'background'
+            ]);
+
+            return $this->successResponse('Import started successfully. Processing in background.', [
+                'import_id' => $importId,
+                'method' => 'background',
+                'note' => 'Large file detected - processing in background for better performance'
+            ]);
+
+        } catch (\Exception $e) {
+            // Clean up temp file on error
+            Storage::delete($tempFilePath);
+
+            Log::error('Background import setup failed', [
+                'error' => $e->getMessage(),
+                'template_id' => $formTemplateId,
+                'user_id' => auth()->id()
+            ]);
+
+            return $this->serverErrorResponse(
+                'Failed to start import',
                 config('app.debug') ? ['error' => $e->getMessage()] : null
             );
         }

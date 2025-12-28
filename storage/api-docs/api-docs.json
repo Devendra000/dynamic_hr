@@ -1396,7 +1396,7 @@
                     "Form Submissions"
                 ],
                 "summary": "List available forms for current user",
-                "description": "Get all active form templates available for submission. Includes main templates and user-specific templates (KYE/KYA) based on user role: Employees see main templates + their assigned KYE templates, Admin/HR see all templates including KYA evaluation forms.",
+                "description": "Get all active form templates available for submission. Admin/HR see all templates (main + KYE/KYA), regular employees see only their assigned KYE templates.",
                 "operationId": "b998c81e89bf5338ca8efa7e98716198",
                 "responses": {
                     "200": {
@@ -2002,6 +2002,112 @@
                         "content": {
                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
                         }
+                    },
+                    "403": {
+                        "description": "Forbidden - No permission to export submissions"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/submissions/export": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Export my submissions to Excel",
+                "description": "Download employee's own form submissions as Excel file",
+                "operationId": "fd180cadafbbfafb283640c5ac604881",
+                "parameters": [
+                    {
+                        "name": "form_template_id",
+                        "in": "query",
+                        "description": "Filter by template ID",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "draft",
+                                "submitted",
+                                "approved",
+                                "rejected"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "date_from",
+                        "in": "query",
+                        "description": "Filter from date (YYYY-MM-DD)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "date_to",
+                        "in": "query",
+                        "description": "Filter to date (YYYY-MM-DD)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel file download",
+                        "content": {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - No permission to export submissions"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/form-templates/{id}/permissions": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Check template permissions",
+                "description": "Debug endpoint to check template permissions and user roles",
+                "operationId": "a9e763236a6722be92f76d249dca1146",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Form template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Permission details"
                     }
                 },
                 "security": [
@@ -2039,6 +2145,49 @@
                     },
                     "404": {
                         "description": "Form template not found"
+                    },
+                    "403": {
+                        "description": "Forbidden - No permission to download template"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/templates/{id}/excel-template": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Download Excel template for KYE forms",
+                "description": "Download Excel template for assigned KYE (Know Your Employee) forms",
+                "operationId": "0331745a3e39d99aab24db7f23394853",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Form template ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Excel template download",
+                        "content": {
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+                        }
+                    },
+                    "404": {
+                        "description": "Form template not found"
+                    },
+                    "403": {
+                        "description": "Forbidden - Not assigned to this KYE template"
                     }
                 },
                 "security": [
@@ -2084,10 +2233,213 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Import completed with statistics"
+                        "description": "Import completed with statistics (small files) or background job started (large files)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "properties": {
+                                                "success": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "Import completed successfully"
+                                                },
+                                                "data": {
+                                                    "properties": {
+                                                        "imported": {
+                                                            "type": "integer",
+                                                            "example": 150
+                                                        },
+                                                        "skipped": {
+                                                            "type": "integer",
+                                                            "example": 5
+                                                        },
+                                                        "errors": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "method": {
+                                                            "type": "string",
+                                                            "example": "direct"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        {
+                                            "properties": {
+                                                "success": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "Import started successfully. Processing in background."
+                                                },
+                                                "data": {
+                                                    "properties": {
+                                                        "import_id": {
+                                                            "type": "integer",
+                                                            "example": 123
+                                                        },
+                                                        "method": {
+                                                            "type": "string",
+                                                            "example": "background"
+                                                        },
+                                                        "note": {
+                                                            "type": "string",
+                                                            "example": "Large file detected - processing in background for better performance"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "422": {
                         "description": "Validation error"
+                    },
+                    "403": {
+                        "description": "Forbidden - No permission to import submissions"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/submissions/import": {
+            "post": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Import submissions from Excel",
+                "description": "Upload and import form submissions from Excel file for assigned templates",
+                "operationId": "f573ecd8582fe884d7f78e52defa2921",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file",
+                                    "form_template_id"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "description": "Excel file (.xlsx or .xls)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "form_template_id": {
+                                        "description": "Form template ID (must be assigned to user for KYE forms)",
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Import completed with statistics (small files) or background job started (large files)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "properties": {
+                                                "success": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "Import completed successfully"
+                                                },
+                                                "data": {
+                                                    "properties": {
+                                                        "imported": {
+                                                            "type": "integer",
+                                                            "example": 1
+                                                        },
+                                                        "skipped": {
+                                                            "type": "integer",
+                                                            "example": 0
+                                                        },
+                                                        "errors": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "method": {
+                                                            "type": "string",
+                                                            "example": "direct"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        {
+                                            "properties": {
+                                                "success": {
+                                                    "type": "boolean",
+                                                    "example": true
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "Import started successfully. Processing in background."
+                                                },
+                                                "data": {
+                                                    "properties": {
+                                                        "import_id": {
+                                                            "type": "integer",
+                                                            "example": 123
+                                                        },
+                                                        "method": {
+                                                            "type": "string",
+                                                            "example": "background"
+                                                        },
+                                                        "note": {
+                                                            "type": "string",
+                                                            "example": "Large file detected - processing in background for better performance"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    },
+                    "403": {
+                        "description": "Forbidden - No permission to import to this template"
                     }
                 },
                 "security": [
@@ -2133,6 +2485,57 @@
                 "responses": {
                     "200": {
                         "description": "Validation results with preview"
+                    },
+                    "403": {
+                        "description": "Forbidden - No permission to validate imports"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/submissions/import/validate": {
+            "post": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Validate Excel import",
+                "description": "Preview and validate Excel file before actual import for assigned templates",
+                "operationId": "61ccecc350ef228e7e1e4235cd6b3564",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "required": [
+                                    "file",
+                                    "form_template_id"
+                                ],
+                                "properties": {
+                                    "file": {
+                                        "description": "Excel file (.xlsx or .xls)",
+                                        "type": "string",
+                                        "format": "binary"
+                                    },
+                                    "form_template_id": {
+                                        "description": "Form template ID (must be assigned to user for KYE forms)",
+                                        "type": "integer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Validation results with preview"
+                    },
+                    "403": {
+                        "description": "Forbidden - No permission to validate imports for this template"
                     }
                 },
                 "security": [
@@ -2150,6 +2553,86 @@
                 "summary": "Get import status",
                 "description": "Get the status of a background import job",
                 "operationId": "b83f703f9899fb3b692ea6d9a7dd8ffc",
+                "parameters": [
+                    {
+                        "name": "importId",
+                        "in": "path",
+                        "description": "Import ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Import status retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Import status retrieved"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "filename": {
+                                                    "type": "string"
+                                                },
+                                                "imported_count": {
+                                                    "type": "integer"
+                                                },
+                                                "skipped_count": {
+                                                    "type": "integer"
+                                                },
+                                                "errors": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Import not found"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/submissions/import/status/{importId}": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Get import status",
+                "description": "Get the status of a background import job",
+                "operationId": "fdd15e4b0e8e83ac967bb9c2ceb9cc83",
                 "parameters": [
                     {
                         "name": "importId",
@@ -2284,6 +2767,68 @@
                 ]
             }
         },
+        "/employee/submissions/imports": {
+            "get": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Get user imports",
+                "description": "Get all imports for the authenticated user",
+                "operationId": "8eeaa3aa9a4cc27a206ac0f7f499fa54",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "Filter by status",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pending",
+                                "processing",
+                                "completed",
+                                "failed"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Imports retrieved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Imports retrieved"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
         "/admin/submissions/import/{importId}/retry": {
             "post": {
                 "tags": [
@@ -2292,6 +2837,72 @@
                 "summary": "Retry failed import",
                 "description": "Retry a failed import job",
                 "operationId": "ec1c6319a1a7db8db953eabc08a65b7e",
+                "parameters": [
+                    {
+                        "name": "importId",
+                        "in": "path",
+                        "description": "Import ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Import retry initiated",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Import retry initiated"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "import_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Import is not failed or already processing"
+                    },
+                    "404": {
+                        "description": "Import not found"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/employee/submissions/import/{importId}/retry": {
+            "post": {
+                "tags": [
+                    "Excel Import/Export"
+                ],
+                "summary": "Retry failed import",
+                "description": "Retry a failed import job",
+                "operationId": "3b66435ddaac791bb302450fce96a789",
                 "parameters": [
                     {
                         "name": "importId",

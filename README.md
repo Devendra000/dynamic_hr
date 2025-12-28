@@ -219,7 +219,9 @@ app/Http/Requests/FormSubmissionRequest.php
 - Field validation during import (type, required, min/max, options)
 - Row-by-row error reporting with line numbers
 - Preview/validate endpoint before actual import
-- **Background processing using Laravel queues (Redis)**
+- **Smart import strategy based on file size:**
+  - **< 1000 rows:** Direct synchronous import (immediate results)
+  - **≥ 1000 rows:** Background processing using Laravel queues (Redis)
 - **Chunking: Automatically splits large CSV files into 10,000-row chunks for parallel processing**
 - **Parallel processing with multiple queue workers for faster imports**
 - File storage in `storage/app/imports` with unique filenames

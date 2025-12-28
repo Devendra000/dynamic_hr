@@ -24,7 +24,7 @@ class FormSubmissionController extends Controller
      *     path="/employee/forms",
      *     tags={"Form Submissions"},
      *     summary="List available forms for current user",
-     *     description="Get all active form templates available for submission. Includes main templates and user-specific templates (KYE/KYA) based on user role: Employees see main templates + their assigned KYE templates, Admin/HR see all templates including KYA evaluation forms.",
+     *     description="Get all active form templates available for submission. Admin/HR see all templates (main + KYE/KYA), regular employees see only their assigned KYE templates.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Response(
      *         response=200,
@@ -78,35 +78,33 @@ class FormSubmissionController extends Controller
         try {
             $user = auth()->user();
             
-            // Get main active templates
-            $mainForms = FormTemplate::with('fields')
-                ->active()
-                ->mainTemplates()
-                ->latest()
-                ->get();
-
             // Get user-specific templates based on role and template type
-            $userSpecificForms = collect();
+            $forms = collect();
             
             if ($user->hasRole(['admin', 'hr'])) {
-                // Admin/HR can see all user-specific templates (both KYE and KYA)
+                // Admin/HR can see all templates: main templates + all user-specific templates (KYE and KYA)
+                $mainForms = FormTemplate::with('fields')
+                    ->active()
+                    ->mainTemplates()
+                    ->latest()
+                    ->get();
+
                 $userSpecificForms = FormTemplate::with('fields')
                     ->active()
                     ->userSpecific()
                     ->latest()
                     ->get();
+
+                $forms = $mainForms->merge($userSpecificForms);
             } else {
-                // Regular employees can only see KYE templates assigned to them
-                $userSpecificForms = FormTemplate::with('fields')
+                // Regular employees can only see templates assigned to them (KYE templates)
+                $forms = FormTemplate::with('fields')
                     ->active()
                     ->where('template_type', FormTemplate::TEMPLATE_TYPE_KYE)
                     ->assignedTo($user->id)
                     ->latest()
                     ->get();
             }
-
-            // Combine both types of forms
-            $forms = $mainForms->merge($userSpecificForms);
 
             return $this->successResponse('Available forms retrieved successfully', $forms);
         } catch (\Exception $e) {
