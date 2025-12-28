@@ -205,6 +205,210 @@ class FormTemplateController extends Controller
     }
 
     /**
+     * Create a user-specific template from a main template
+     *
+     * @OA\Post(
+     *     path="/admin/form-templates/{id}/assign-user",
+     *     tags={"Form Template Management"},
+     *     summary="Create user-specific template (KYE/KYA)",
+     *     description="Create a KYE (Know Your Employee) or KYA (Know Your Associate) template for a specific user based on a main template. KYE templates are for self-assessment, KYA templates are for evaluations by HR/Admin.",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(
+     *         name="id",
+     *         in="path",
+     *         description="Main template ID to use as base",
+     *         required=true,
+     *         @OA\Schema(type="integer")
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"user_id", "template_type"},
+     *             @OA\Property(property="user_id", type="integer", description="User ID to assign the template to", example=3),
+     *             @OA\Property(
+     *                 property="template_type",
+     *                 type="string",
+     *                 enum={"kye", "kya"},
+     *                 description="Type of user-specific template: 'kye' for self-assessment, 'kya' for HR evaluation",
+     *                 example="kye"
+     *             ),
+     *             @OA\Property(property="title", type="string", description="Custom title for the user-specific template", example="Know Your Employee - Self Assessment"),
+     *             @OA\Property(property="description", type="string", description="Custom description", example="Personal development and performance review")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="User-specific template created successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="User-specific template created successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="id", type="integer", example=2),
+     *                 @OA\Property(property="title", type="string", example="Know Your Employee - Self Assessment"),
+     *                 @OA\Property(property="description", type="string", example="Personal development and performance review"),
+     *                 @OA\Property(property="status", type="string", example="active"),
+     *                 @OA\Property(property="template_type", type="string", example="kye"),
+     *                 @OA\Property(property="parent_template_id", type="integer", example=1),
+     *                 @OA\Property(property="assigned_to", type="integer", example=3),
+     *                 @OA\Property(property="created_by", type="integer", example=1),
+     *                 @OA\Property(
+     *                     property="fields",
+     *                     type="array",
+     *                     @OA\Items(
+     *                         type="object",
+     *                         @OA\Property(property="id", type="integer", example=5),
+     *                         @OA\Property(property="field_type", type="string", example="text"),
+     *                         @OA\Property(property="label", type="string", example="Full Name"),
+     *                         @OA\Property(property="is_required", type="boolean", example=true),
+     *                         @OA\Property(property="order", type="integer", example=1)
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - Only Admin and HR can create KYA templates",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Only Admin and HR users can create KYA templates")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Bad Request - Template already exists or invalid main template",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="User-specific template already exists for this user and type")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
+     *     )
+     * )
+     */
+    public function assignToUser(Request $request, $templateId): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            $validated = $request->validate([
+                'user_id' => 'required|exists:users,id',
+                'template_type' => ['required', Rule::in([FormTemplate::TEMPLATE_TYPE_KYE, FormTemplate::TEMPLATE_TYPE_KYA])],
+                'title' => 'nullable|string|max:255',
+                'description' => 'nullable|string',
+            ]);
+
+            // Role-based validation for template types
+            if ($validated['template_type'] === FormTemplate::TEMPLATE_TYPE_KYA && !$user->hasRole(['admin', 'hr'])) {
+                return $this->forbiddenResponse('Only Admin and HR users can create KYA templates');
+            }
+
+            // Check if main template exists
+            try {
+                $mainTemplate = FormTemplate::findOrFail($templateId);
+            } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+                return $this->notFoundResponse('Main template not found');
+            }
+            if (!$mainTemplate->isMainTemplate()) {
+                return $this->errorResponse('Only main templates can be assigned to users', null, 400);
+            }
+
+            // Check if user-specific template already exists for this user and type
+            $existingTemplate = FormTemplate::where('parent_template_id', $templateId)
+                ->where('assigned_to', $validated['user_id'])
+                ->where('template_type', $validated['template_type'])
+                ->first();
+
+            if ($existingTemplate) {
+                return $this->errorResponse('User-specific template already exists for this user and type', null, 400);
+            }
+
+            DB::beginTransaction();
+
+            try {
+                // Create user-specific template
+                $userTemplate = FormTemplate::create([
+                    'title' => $validated['title'] ?? $mainTemplate->title . ' (' . strtoupper($validated['template_type']) . ')',
+                    'description' => $validated['description'] ?? $mainTemplate->description,
+                    'status' => 'active',
+                    'template_type' => $validated['template_type'],
+                    'parent_template_id' => $mainTemplate->id,
+                    'assigned_to' => $validated['user_id'],
+                    'created_by' => auth()->id()
+                ]);
+
+                // Copy fields from main template
+                foreach ($mainTemplate->fields as $field) {
+                    $userTemplate->fields()->create([
+                        'field_type' => $field->field_type,
+                        'label' => $field->label,
+                        'placeholder' => $field->placeholder,
+                        'options' => $field->options,
+                        'validation_rules' => $field->validation_rules,
+                        'is_required' => $field->is_required,
+                        'order' => $field->order,
+                    ]);
+                }
+
+                DB::commit();
+
+                Log::info('User-specific template created', [
+                    'template_id' => $userTemplate->id,
+                    'parent_template_id' => $mainTemplate->id,
+                    'assigned_to' => $validated['user_id'],
+                    'template_type' => $validated['template_type']
+                ]);
+
+                return $this->successResponse('User-specific template created successfully', $userTemplate->load('fields'), 201);
+
+            } catch (\Illuminate\Database\QueryException $e) {
+                DB::rollBack();
+                Log::error('Database error while creating user-specific template', [
+                    'error' => $e->getMessage(),
+                    'template_id' => $templateId,
+                    'user_id' => $validated['user_id']
+                ]);
+
+                if (str_contains($e->getMessage(), 'duplicate key') || str_contains($e->getMessage(), 'unique constraint')) {
+                    return $this->errorResponse('A template with similar configuration already exists', null, 400);
+                }
+
+                return $this->serverErrorResponse('Database error occurred while creating template');
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Unexpected error while creating user-specific template', [
+                    'error' => $e->getMessage(),
+                    'template_id' => $templateId,
+                    'user_id' => $validated['user_id']
+                ]);
+
+                return $this->serverErrorResponse('Unexpected error occurred while creating template');
+            }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->validationErrorResponse('Validation failed', $e->errors());
+        } catch (\Exception $e) {
+            Log::error('Failed to create user-specific template', [
+                'error' => $e->getMessage(),
+                'template_id' => $templateId,
+                'user_id' => auth()->id()
+            ]);
+
+            return $this->serverErrorResponse(
+                'Failed to create user-specific template',
+                config('app.debug') ? ['error' => $e->getMessage()] : null
+            );
+        }
+    }
+
+    /**
      * Get a specific form template
      *
      * @OA\Get(

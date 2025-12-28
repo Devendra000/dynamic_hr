@@ -117,6 +117,49 @@ database/migrations/2025_12_23_140353_create_form_fields_table.php
 
 ---
 
+### **Requirement 3.1: User-Specific Templates (KYE/KYA)**
+**Need:** Create user-specific templates where KYE (Know Your Employee) and KYA (Know Your Associate) are managed from main templates
+
+**Solution Used:** Template inheritance with user assignment
+
+**Implementation:**
+- Main templates serve as base templates
+- User-specific templates (KYE/KYA) are created from main templates
+- Each user-specific template is assigned to a specific user
+- KYE templates for employee self-assessment
+- KYA templates for associate/manager evaluations
+- Automatic field copying from parent template
+- Access control ensures users can only see their assigned templates
+
+**Database Structure:**
+```sql
+form_templates: id, title, description, status, template_type, parent_template_id, assigned_to, created_by, timestamps, deleted_at
+```
+
+**Template Types:**
+- `main`: Base templates created by Admin/HR
+- `kye`: Know Your Employee (self-assessment) - accessible by assigned employee only
+- `kya`: Know Your Associate (peer/manager evaluation) - accessible by Admin/HR only
+
+**Access Control:**
+- **KYE Templates**: Only the assigned employee can view and submit their own self-assessment forms
+- **KYA Templates**: Only Admin and HR users can view and submit evaluation forms for others
+- **Main Templates**: All authenticated users can access general forms
+
+**Key Files:**
+```
+app/Models/FormTemplate.php (updated with user-specific relationships)
+app/Http/Controllers/FormTemplateController.php (added assignToUser method)
+app/Http/Controllers/Employee/FormSubmissionController.php (updated availableForms)
+app/Http/Requests/FormSubmissionRequest.php (updated authorization)
+database/migrations/2025_12_28_060751_add_user_specific_fields_to_form_templates_table.php
+```
+
+**API Endpoints:**
+- `POST /api/admin/form-templates/{id}/assign-user` - Create user-specific template
+
+---
+
 ### **Requirement 4: Form Submissions**
 **Need:** Employees submit forms, Admin/HR review and approve/reject
 
@@ -514,7 +557,59 @@ POST /api/auth/refresh
 
 ---
 
-## API Usage Examples
+## Testing User-Specific Templates (KYE/KYA)
+
+A comprehensive test script is provided to demonstrate the complete workflow:
+
+```bash
+# Run the test script
+chmod +x test_user_specific_templates.sh
+./test_user_specific_templates.sh
+```
+
+### Test Workflow:
+
+1. **Admin creates a main template** (base assessment form)
+2. **Admin creates KYE template** for employee self-assessment
+3. **Employee logs in and submits** their KYE form
+4. **Admin creates KYA template** for HR evaluation
+5. **Admin submits KYA evaluation** for the employee
+6. **Verify access controls**: Employee sees only KYE, Admin sees both
+
+### Expected Results:
+
+- **Employee** can only access their assigned KYE templates
+- **Admin/HR** can access all templates including KYA evaluation forms
+- **Form submissions** are properly validated and stored
+- **Role-based access** is enforced throughout the workflow
+
+### Sample Test Output:
+
+```bash
+# Admin creates main template
+HTTP/1.1 201 Created
+{"success": true, "message": "Form template created successfully", "data": {"id": 1, ...}}
+
+# Admin creates KYE template for employee
+HTTP/1.1 201 Created
+{"success": true, "message": "User-specific template created successfully", "data": {"id": 2, "template_type": "kye", ...}}
+
+# Employee views available forms (sees KYE template)
+HTTP/1.1 200 OK
+{"success": true, "data": [{"id": 2, "template_type": "kye", "title": "Know Your Employee - Self Assessment", ...}]}
+
+# Employee submits KYE form
+HTTP/1.1 201 Created
+{"success": true, "message": "Form submitted successfully", ...}
+
+# Admin creates KYA template
+HTTP/1.1 201 Created
+{"success": true, "message": "User-specific template created successfully", "data": {"id": 3, "template_type": "kya", ...}}
+
+# Admin submits KYA evaluation
+HTTP/1.1 201 Created
+{"success": true, "message": "Form submitted successfully", ...}
+```
 
 ### **Create Form Template (Admin/HR)**
 ```bash
@@ -554,6 +649,52 @@ Content-Type: application/json
       "order": 4
     }
   ]
+}
+```
+
+### **Create User-Specific Template (KYE/KYA) (Admin/HR)**
+```bash
+POST /api/admin/form-templates/1/assign-user
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "user_id": 2,
+  "template_type": "kye",
+  "title": "Know Your Employee - Self Assessment",
+  "description": "Personal development and goal setting form"
+}
+```
+
+**Role Restrictions:**
+- KYE templates can be created by Admin/HR (typically assigned to employees for self-assessment)
+- KYA templates can only be created by Admin/HR users (for peer/manager evaluations)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User-specific template created successfully",
+  "data": {
+    "id": 5,
+    "title": "Know Your Employee - Self Assessment",
+    "description": "Personal development and goal setting form",
+    "status": "active",
+    "template_type": "kye",
+    "parent_template_id": 1,
+    "assigned_to": 2,
+    "created_by": 1,
+    "fields": [
+      {
+        "id": 10,
+        "field_type": "text",
+        "label": "Full Name",
+        "is_required": true,
+        "order": 1
+      }
+      // ... other fields copied from parent template
+    ]
+  }
 }
 ```
 

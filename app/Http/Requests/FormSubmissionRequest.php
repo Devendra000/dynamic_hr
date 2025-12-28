@@ -16,6 +16,36 @@ class FormSubmissionRequest extends FormRequest
      */
     public function authorize(): bool
     {
+        if ($this->has('form_template_id')) {
+            $template = FormTemplate::find($this->form_template_id);
+
+            if (!$template) {
+                // Template doesn't exist - this will be handled in validation
+                return true; // Allow to proceed to validation which will catch the exists rule
+            }
+
+            // Store the template for later use
+            $this->formTemplate = $template;
+
+            // If it's a user-specific template, check based on template type
+            if ($template->isUserSpecific()) {
+                $user = auth()->user();
+
+                if ($template->template_type === \App\Models\FormTemplate::TEMPLATE_TYPE_KYE) {
+                    // KYE templates: Only the assigned employee can fill their own assessment
+                    return $template->assigned_to === $user->id;
+                }
+
+                if ($template->template_type === \App\Models\FormTemplate::TEMPLATE_TYPE_KYA) {
+                    // KYA templates: Only Admin and HR can fill evaluation forms
+                    return $user->hasRole(['admin', 'hr']);
+                }
+            }
+
+            // For main templates, any authenticated user can access
+            return true;
+        }
+
         return true;
     }
 
@@ -158,6 +188,44 @@ class FormSubmissionRequest extends FormRequest
         }
 
         return $attributes;
+    }
+
+    /**
+     * Handle a failed authorization attempt.
+     */
+    protected function failedAuthorization()
+    {
+        $template = FormTemplate::find($this->form_template_id);
+
+        if (!$template) {
+            throw new HttpResponseException(response()->json([
+                'success' => false,
+                'message' => 'Form template not found'
+            ], 404));
+        }
+
+        if ($template->isUserSpecific()) {
+            $user = auth()->user();
+
+            if ($template->template_type === \App\Models\FormTemplate::TEMPLATE_TYPE_KYE) {
+                throw new HttpResponseException(response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to submit this assessment form'
+                ], 403));
+            }
+
+            if ($template->template_type === \App\Models\FormTemplate::TEMPLATE_TYPE_KYA) {
+                throw new HttpResponseException(response()->json([
+                    'success' => false,
+                    'message' => 'Only administrators and HR personnel can submit evaluation forms'
+                ], 403));
+            }
+        }
+
+        throw new HttpResponseException(response()->json([
+            'success' => false,
+            'message' => 'You do not have permission to submit this form'
+        ], 403));
     }
 
     /**

@@ -1395,12 +1395,137 @@
                 "tags": [
                     "Form Submissions"
                 ],
-                "summary": "List available forms",
-                "description": "Get all active form templates available for submission",
+                "summary": "List available forms for current user",
+                "description": "Get all active form templates available for submission. Includes main templates and user-specific templates (KYE/KYA) based on user role: Employees see main templates + their assigned KYE templates, Admin/HR see all templates including KYA evaluation forms.",
                 "operationId": "b998c81e89bf5338ca8efa7e98716198",
                 "responses": {
                     "200": {
-                        "description": "Forms retrieved successfully"
+                        "description": "Forms retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Available forms retrieved successfully"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "title": {
+                                                        "type": "string",
+                                                        "example": "Employee Onboarding"
+                                                    },
+                                                    "description": {
+                                                        "type": "string",
+                                                        "example": "New employee information form"
+                                                    },
+                                                    "status": {
+                                                        "type": "string",
+                                                        "example": "active"
+                                                    },
+                                                    "template_type": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "main",
+                                                            "kye",
+                                                            "kya"
+                                                        ],
+                                                        "example": "main"
+                                                    },
+                                                    "parent_template_id": {
+                                                        "type": "integer",
+                                                        "example": null,
+                                                        "nullable": true
+                                                    },
+                                                    "assigned_to": {
+                                                        "type": "integer",
+                                                        "example": null,
+                                                        "nullable": true
+                                                    },
+                                                    "fields": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "properties": {
+                                                                "id": {
+                                                                    "type": "integer",
+                                                                    "example": 1
+                                                                },
+                                                                "field_type": {
+                                                                    "type": "string",
+                                                                    "example": "text"
+                                                                },
+                                                                "label": {
+                                                                    "type": "string",
+                                                                    "example": "Full Name"
+                                                                },
+                                                                "placeholder": {
+                                                                    "type": "string",
+                                                                    "example": "Enter your name"
+                                                                },
+                                                                "is_required": {
+                                                                    "type": "boolean",
+                                                                    "example": true
+                                                                },
+                                                                "order": {
+                                                                    "type": "integer",
+                                                                    "example": 1
+                                                                },
+                                                                "options": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "example": "[\"Option 1\", \"Option 2\"]",
+                                                                    "nullable": true
+                                                                },
+                                                                "validation_rules": {
+                                                                    "type": "object",
+                                                                    "example": "{\"min\": 18, \"max\": 100}",
+                                                                    "nullable": true
+                                                                }
+                                                            },
+                                                            "type": "object"
+                                                        }
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -1470,8 +1595,8 @@
                 "tags": [
                     "Form Submissions"
                 ],
-                "summary": "Submit form",
-                "description": "Create a new form submission with responses",
+                "summary": "Submit form with responses",
+                "description": "Create a new form submission with responses. Validates user access to templates: KYE templates can only be submitted by the assigned user, KYA templates can only be submitted by Admin/HR users.",
                 "operationId": "c7a94c76a01cdb2c8d954c7d44ae9920",
                 "requestBody": {
                     "required": true,
@@ -1484,10 +1609,12 @@
                                 ],
                                 "properties": {
                                     "form_template_id": {
+                                        "description": "ID of the form template to submit",
                                         "type": "integer",
                                         "example": 1
                                     },
                                     "status": {
+                                        "description": "Submission status",
                                         "type": "string",
                                         "enum": [
                                             "draft",
@@ -1496,6 +1623,7 @@
                                         "example": "submitted"
                                     },
                                     "responses": {
+                                        "description": "Object containing field_id => response_value pairs",
                                         "type": "object",
                                         "example": {
                                             "1": "John Doe",
@@ -1511,7 +1639,164 @@
                 },
                 "responses": {
                     "201": {
-                        "description": "Form submitted successfully"
+                        "description": "Form submitted successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Form submitted successfully"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "form_template_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "user_id": {
+                                                    "type": "integer",
+                                                    "example": 3
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "example": "submitted"
+                                                },
+                                                "submitted_at": {
+                                                    "type": "string",
+                                                    "format": "date-time",
+                                                    "example": "2024-01-15T10:30:00Z"
+                                                },
+                                                "template": {
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer",
+                                                            "example": 1
+                                                        },
+                                                        "title": {
+                                                            "type": "string",
+                                                            "example": "Employee Assessment"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "responses": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer",
+                                                                "example": 1
+                                                            },
+                                                            "form_field_id": {
+                                                                "type": "integer",
+                                                                "example": 1
+                                                            },
+                                                            "response_value": {
+                                                                "type": "string",
+                                                                "example": "John Doe"
+                                                            },
+                                                            "field": {
+                                                                "properties": {
+                                                                    "label": {
+                                                                        "type": "string",
+                                                                        "example": "Full Name"
+                                                                    },
+                                                                    "field_type": {
+                                                                        "type": "string",
+                                                                        "example": "text"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - User does not have access to this template",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "You do not have permission to submit this form"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation failed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Validation failed"
+                                        },
+                                        "errors": {
+                                            "type": "object",
+                                            "example": {
+                                                "responses.1": [
+                                                    "The responses.1 field is required"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [
@@ -2223,6 +2508,219 @@
                 "responses": {
                     "201": {
                         "description": "Template created successfully"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/admin/form-templates/{id}/assign-user": {
+            "post": {
+                "tags": [
+                    "Form Template Management"
+                ],
+                "summary": "Create user-specific template (KYE/KYA)",
+                "description": "Create a KYE (Know Your Employee) or KYA (Know Your Associate) template for a specific user based on a main template. KYE templates are for self-assessment, KYA templates are for evaluations by HR/Admin.",
+                "operationId": "90d0d23cf02ba9460852b0d223d3b793",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Main template ID to use as base",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "user_id",
+                                    "template_type"
+                                ],
+                                "properties": {
+                                    "user_id": {
+                                        "description": "User ID to assign the template to",
+                                        "type": "integer",
+                                        "example": 3
+                                    },
+                                    "template_type": {
+                                        "description": "Type of user-specific template: 'kye' for self-assessment, 'kya' for HR evaluation",
+                                        "type": "string",
+                                        "enum": [
+                                            "kye",
+                                            "kya"
+                                        ],
+                                        "example": "kye"
+                                    },
+                                    "title": {
+                                        "description": "Custom title for the user-specific template",
+                                        "type": "string",
+                                        "example": "Know Your Employee - Self Assessment"
+                                    },
+                                    "description": {
+                                        "description": "Custom description",
+                                        "type": "string",
+                                        "example": "Personal development and performance review"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User-specific template created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User-specific template created successfully"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 2
+                                                },
+                                                "title": {
+                                                    "type": "string",
+                                                    "example": "Know Your Employee - Self Assessment"
+                                                },
+                                                "description": {
+                                                    "type": "string",
+                                                    "example": "Personal development and performance review"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "example": "active"
+                                                },
+                                                "template_type": {
+                                                    "type": "string",
+                                                    "example": "kye"
+                                                },
+                                                "parent_template_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "assigned_to": {
+                                                    "type": "integer",
+                                                    "example": 3
+                                                },
+                                                "created_by": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "fields": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer",
+                                                                "example": 5
+                                                            },
+                                                            "field_type": {
+                                                                "type": "string",
+                                                                "example": "text"
+                                                            },
+                                                            "label": {
+                                                                "type": "string",
+                                                                "example": "Full Name"
+                                                            },
+                                                            "is_required": {
+                                                                "type": "boolean",
+                                                                "example": true
+                                                            },
+                                                            "order": {
+                                                                "type": "integer",
+                                                                "example": 1
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - Only Admin and HR can create KYA templates",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Only Admin and HR users can create KYA templates"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request - Template already exists or invalid main template",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User-specific template already exists for this user and type"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Unauthenticated"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     }
                 },
                 "security": [

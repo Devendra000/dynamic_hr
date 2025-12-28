@@ -105,6 +105,9 @@ Route::group([
         Route::post('/{id}/fields', [FormTemplateController::class, 'addField'])->name('admin.form-templates.add-field');
         Route::put('/{id}/fields/{fieldId}', [FormTemplateController::class, 'updateField'])->name('admin.form-templates.update-field');
         Route::delete('/{id}/fields/{fieldId}', [FormTemplateController::class, 'removeField'])->name('admin.form-templates.remove-field');
+        
+        // User-specific templates
+        Route::post('/{id}/assign-user', [FormTemplateController::class, 'assignToUser'])->name('admin.form-templates.assign-user');
     });
     
     // Form Submission Management (Admin/HR)

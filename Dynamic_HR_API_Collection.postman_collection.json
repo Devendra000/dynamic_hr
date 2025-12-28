@@ -1,0 +1,1239 @@
+{
+  "info": {
+    "name": "Dynamic HR Form Template System API",
+    "description": "Complete API collection for Dynamic HR system with JWT authentication, role-based access control, and user-specific templates (KYE/KYA)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "dynamic-hr-api"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login - Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@dynamichr.com\",\n  \"password\": \"Admin@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as Admin user to get JWT token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.token) {",
+                  "        pm.collectionVariables.set('admin_token', response.data.token);",
+                  "        pm.collectionVariables.set('current_token', response.data.token);",
+                  "        console.log('Admin token saved:', response.data.token.substring(0, 20) + '...');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - HR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"hr@dynamichr.com\",\n  \"password\": \"TheHR@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as HR user to get JWT token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.token) {",
+                  "        pm.collectionVariables.set('hr_token', response.data.token);",
+                  "        pm.collectionVariables.set('current_token', response.data.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"employee@dynamichr.com\",\n  \"password\": \"Employee@123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login as Employee user to get JWT token"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.token) {",
+                  "        pm.collectionVariables.set('employee_token', response.data.token);",
+                  "        pm.collectionVariables.set('current_token', response.data.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Current User Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{current_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Get current authenticated user information"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{current_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Refresh JWT token before expiration"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.token) {",
+                  "        pm.collectionVariables.set('current_token', response.data.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{current_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Logout and invalidate JWT token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - User Management",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "users"]
+            },
+            "description": "Get paginated list of all users"
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"Test@123\",\n  \"phone\": \"+1234567890\",\n  \"department\": \"IT\",\n  \"position\": \"Developer\",\n  \"employee_id\": \"EMP001\",\n  \"hire_date\": \"2024-01-15\",\n  \"salary\": 50000.00,\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "users"]
+            },
+            "description": "Create a new user"
+          }
+        },
+        {
+          "name": "Get User Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "users", "{{user_id}}"]
+            },
+            "description": "Get detailed information about a specific user"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Test User\",\n  \"department\": \"Engineering\",\n  \"position\": \"Senior Developer\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "users", "{{user_id}}"]
+            },
+            "description": "Update user information"
+          }
+        },
+        {
+          "name": "Assign Role to User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"hr\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{{user_id}}/roles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "users", "{{user_id}}", "roles"]
+            },
+            "description": "Assign a role to a user"
+          }
+        },
+        {
+          "name": "Remove Role from User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/users/{{user_id}}/roles/hr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "users", "{{user_id}}", "roles", "hr"]
+            },
+            "description": "Remove a role from a user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Role Management",
+      "item": [
+        {
+          "name": "List Roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/roles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "roles"]
+            },
+            "description": "Get all roles with their permissions"
+          }
+        },
+        {
+          "name": "Create Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"manager\",\n  \"description\": \"Department Manager Role\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/roles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "roles"]
+            },
+            "description": "Create a new role"
+          }
+        },
+        {
+          "name": "List Permissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/permissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "permissions"]
+            },
+            "description": "Get all permissions"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Form Template Management",
+      "item": [
+        {
+          "name": "List Form Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates?per_page=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates"],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get paginated list of form templates"
+          }
+        },
+        {
+          "name": "Create Main Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Employee Assessment Template\",\n  \"description\": \"Base template for employee assessments\",\n  \"status\": \"active\",\n  \"fields\": [\n    {\n      \"field_type\": \"text\",\n      \"label\": \"Full Name\",\n      \"is_required\": true,\n      \"order\": 1\n    },\n    {\n      \"field_type\": \"textarea\",\n      \"label\": \"Self Assessment\",\n      \"is_required\": true,\n      \"order\": 2\n    },\n    {\n      \"field_type\": \"dropdown\",\n      \"label\": \"Performance Rating\",\n      \"options\": [\"Excellent\", \"Good\", \"Needs Improvement\"],\n      \"is_required\": true,\n      \"order\": 3\n    },\n    {\n      \"field_type\": \"textarea\",\n      \"label\": \"Goals for Next Year\",\n      \"is_required\": false,\n      \"order\": 4\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates"]
+            },
+            "description": "Create a new main form template with fields"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.id) {",
+                  "        pm.collectionVariables.set('main_template_id', response.data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create KYE Template (Self-Assessment)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 3,\n  \"template_type\": \"kye\",\n  \"title\": \"Know Your Employee - Self Assessment\",\n  \"description\": \"Personal development and performance review\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates/{{main_template_id}}/assign-user",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates", "{{main_template_id}}", "assign-user"]
+            },
+            "description": "Create a KYE (Know Your Employee) template for a specific user"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.id) {",
+                  "        pm.collectionVariables.set('kye_template_id', response.data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create KYA Template (HR Evaluation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": 3,\n  \"template_type\": \"kya\",\n  \"title\": \"Know Your Associate - HR Evaluation\",\n  \"description\": \"Managerial evaluation of employee performance\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates/{{main_template_id}}/assign-user",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates", "{{main_template_id}}", "assign-user"]
+            },
+            "description": "Create a KYA (Know Your Associate) template for HR evaluation"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.id) {",
+                  "        pm.collectionVariables.set('kya_template_id', response.data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Template Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates/{{main_template_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates", "{{main_template_id}}"]
+            },
+            "description": "Get detailed information about a specific template"
+          }
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Assessment Template\",\n  \"description\": \"Updated description\",\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates/{{main_template_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates", "{{main_template_id}}"]
+            },
+            "description": "Update template information"
+          }
+        },
+        {
+          "name": "Duplicate Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates/{{main_template_id}}/duplicate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates", "{{main_template_id}}", "duplicate"]
+            },
+            "description": "Create a duplicate of an existing template"
+          }
+        },
+        {
+          "name": "Download Template Excel",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/form-templates/{{main_template_id}}/excel-template",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "form-templates", "{{main_template_id}}", "excel-template"]
+            },
+            "description": "Download Excel template with proper column headers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Form Submission Management",
+      "item": [
+        {
+          "name": "List All Submissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/submissions?per_page=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "submissions"],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get paginated list of all form submissions"
+          }
+        },
+        {
+          "name": "Get Submission Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/submissions/{{submission_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "submissions", "{{submission_id}}"]
+            },
+            "description": "Get detailed information about a specific submission"
+          }
+        },
+        {
+          "name": "Update Submission Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\",\n  \"comments\": \"Well done! Approved.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/submissions/{{submission_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "submissions", "{{submission_id}}", "status"]
+            },
+            "description": "Update submission status (approve/reject)"
+          }
+        },
+        {
+          "name": "Export Submissions to Excel",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/submissions/export?form_template_id={{main_template_id}}&status=submitted",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "submissions", "export"],
+              "query": [
+                {
+                  "key": "form_template_id",
+                  "value": "{{main_template_id}}"
+                },
+                {
+                  "key": "status",
+                  "value": "submitted"
+                }
+              ]
+            },
+            "description": "Export submissions to Excel file with filtering"
+          }
+        },
+        {
+          "name": "Import Submissions from Excel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "form_template_id",
+                  "value": "{{main_template_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/submissions/import",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "submissions", "import"]
+            },
+            "description": "Import submissions from Excel/CSV file"
+          }
+        },
+        {
+          "name": "Validate Import File",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "form_template_id",
+                  "value": "{{main_template_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/admin/submissions/import/validate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "submissions", "import", "validate"]
+            },
+            "description": "Validate Excel/CSV file before importing"
+          }
+        },
+        {
+          "name": "Get Import Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin/submissions/import/status/{{import_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "admin", "submissions", "import", "status", "{{import_id}}"]
+            },
+            "description": "Check status of background import job"
+          }
+        }
+      ]
+    },
+    {
+      "name": "HR - Employee Management",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/hr/employees",
+              "host": ["{{base_url}}"],
+              "path": ["api", "hr", "employees"]
+            },
+            "description": "Get list of employees (HR/Admin only)"
+          }
+        },
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Employee\",\n  \"email\": \"new.employee@company.com\",\n  \"password\": \"Temp@123\",\n  \"department\": \"Sales\",\n  \"position\": \"Sales Representative\",\n  \"employee_id\": \"EMP002\",\n  \"hire_date\": \"2024-01-15\",\n  \"salary\": 45000.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/hr/employees",
+              "host": ["{{base_url}}"],
+              "path": ["api", "hr", "employees"]
+            },
+            "description": "Create a new employee (HR/Admin only)"
+          }
+        },
+        {
+          "name": "Get Employee Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/hr/employees/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "hr", "employees", "{{user_id}}"]
+            },
+            "description": "Get detailed employee information"
+          }
+        },
+        {
+          "name": "Update Employee",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"department\": \"Marketing\",\n  \"position\": \"Marketing Specialist\",\n  \"salary\": 48000.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/hr/employees/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "hr", "employees", "{{user_id}}"]
+            },
+            "description": "Update employee information"
+          }
+        },
+        {
+          "name": "Update Employee Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hr_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"inactive\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/hr/employees/{{user_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "hr", "employees", "{{user_id}}", "status"]
+            },
+            "description": "Update employee active/inactive status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employee - Form Access & Submission",
+      "item": [
+        {
+          "name": "Get Available Forms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{employee_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employee/forms",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employee", "forms"]
+            },
+            "description": "Get forms available to the current user (includes assigned KYE templates)"
+          }
+        },
+        {
+          "name": "List My Submissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{employee_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employee/submissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employee", "submissions"]
+            },
+            "description": "Get list of user's own submissions"
+          }
+        },
+        {
+          "name": "Submit KYE Form (Self-Assessment)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{employee_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"form_template_id\": {{kye_template_id}},\n  \"status\": \"submitted\",\n  \"responses\": {\n    \"1\": \"John Employee\",\n    \"2\": \"I have been working hard on my projects and have improved my skills in Laravel and React. I believe I have met most of my quarterly goals.\",\n    \"3\": \"Excellent\",\n    \"4\": \"Next year, I want to focus on leadership skills and take on more mentoring responsibilities.\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/employee/submissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employee", "submissions"]
+            },
+            "description": "Submit a KYE (Know Your Employee) self-assessment form"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data.id) {",
+                  "        pm.collectionVariables.set('submission_id', response.data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit KYA Form (HR Evaluation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"form_template_id\": {{kya_template_id}},\n  \"status\": \"submitted\",\n  \"responses\": {\n    \"5\": \"John Employee\",\n    \"6\": \"John has shown excellent growth this year. He has taken initiative on several projects and his technical skills have improved significantly. He is a valuable team member.\",\n    \"7\": \"Excellent\",\n    \"8\": \"John should be considered for a leadership role next year. He has the technical skills and work ethic to succeed in a senior position.\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/employee/submissions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employee", "submissions"]
+            },
+            "description": "Submit a KYA (Know Your Associate) evaluation form (Admin/HR only)"
+          }
+        },
+        {
+          "name": "Get Submission Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{employee_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employee/submissions/{{submission_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employee", "submissions", "{{submission_id}}"]
+            },
+            "description": "Get detailed information about a specific submission"
+          }
+        },
+        {
+          "name": "Update Draft Submission",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{employee_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"draft\",\n  \"responses\": {\n    \"1\": \"Updated Name\",\n    \"2\": \"Updated assessment text...\",\n    \"3\": \"Good\",\n    \"4\": \"Updated goals...\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/employee/submissions/{{submission_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employee", "submissions", "{{submission_id}}"]
+            },
+            "description": "Update a draft submission before final submission"
+          }
+        },
+        {
+          "name": "Delete Draft Submission",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{employee_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/employee/submissions/{{submission_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "employee", "submissions", "{{submission_id}}"]
+            },
+            "description": "Delete a draft submission (cannot delete submitted forms)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Status & Monitoring",
+      "item": [
+        {
+          "name": "API Status Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "status"]
+            },
+            "description": "Check if the API is running and accessible"
+          }
+        },
+        {
+          "name": "Swagger Documentation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/documentation",
+              "host": ["{{base_url}}"],
+              "path": ["api", "documentation"]
+            },
+            "description": "Access interactive API documentation (Swagger UI)"
+          }
+        },
+        {
+          "name": "Laravel Telescope",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/telescope",
+              "host": ["{{base_url}}"],
+              "path": ["telescope"]
+            },
+            "description": "Access Laravel Telescope performance monitoring (Admin only)"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set default base URL if not set",
+          "if (!pm.collectionVariables.get('base_url')) {",
+          "    pm.collectionVariables.set('base_url', 'http://localhost:8000');",
+          "}",
+          "",
+          "// Set default user ID for testing",
+          "if (!pm.collectionVariables.get('user_id')) {",
+          "    pm.collectionVariables.set('user_id', '3');",
+          "}",
+          "",
+          "// Set default import ID for testing",
+          "if (!pm.collectionVariables.get('import_id')) {",
+          "    pm.collectionVariables.set('import_id', '1');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hr_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employee_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "current_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "main_template_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "kye_template_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "kya_template_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "submission_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "3",
+      "type": "string"
+    },
+    {
+      "key": "import_id",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}

@@ -23,22 +23,90 @@ class FormSubmissionController extends Controller
      * @OA\Get(
      *     path="/employee/forms",
      *     tags={"Form Submissions"},
-     *     summary="List available forms",
-     *     description="Get all active form templates available for submission",
+     *     summary="List available forms for current user",
+     *     description="Get all active form templates available for submission. Includes main templates and user-specific templates (KYE/KYA) based on user role: Employees see main templates + their assigned KYE templates, Admin/HR see all templates including KYA evaluation forms.",
      *     security={{"bearerAuth":{}}},
      *     @OA\Response(
      *         response=200,
-     *         description="Forms retrieved successfully"
+     *         description="Forms retrieved successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Available forms retrieved successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(property="id", type="integer", example=1),
+     *                     @OA\Property(property="title", type="string", example="Employee Onboarding"),
+     *                     @OA\Property(property="description", type="string", example="New employee information form"),
+     *                     @OA\Property(property="status", type="string", example="active"),
+     *                     @OA\Property(property="template_type", type="string", enum={"main", "kye", "kya"}, example="main"),
+     *                     @OA\Property(property="parent_template_id", type="integer", nullable=true, example=null),
+     *                     @OA\Property(property="assigned_to", type="integer", nullable=true, example=null),
+     *                     @OA\Property(
+     *                         property="fields",
+     *                         type="array",
+     *                         @OA\Items(
+     *                             type="object",
+     *                             @OA\Property(property="id", type="integer", example=1),
+     *                             @OA\Property(property="field_type", type="string", example="text"),
+     *                             @OA\Property(property="label", type="string", example="Full Name"),
+     *                             @OA\Property(property="placeholder", type="string", example="Enter your name"),
+     *                             @OA\Property(property="is_required", type="boolean", example=true),
+     *                             @OA\Property(property="order", type="integer", example=1),
+     *                             @OA\Property(property="options", type="array", nullable=true, @OA\Items(type="string"), example="[""Option 1"", ""Option 2""]"),
+     *                             @OA\Property(property="validation_rules", type="object", nullable=true, example="{""min"": 18, ""max"": 100}")
+     *                         )
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
      *     )
      * )
      */
     public function availableForms(): JsonResponse
     {
         try {
-            $forms = FormTemplate::with('fields')
+            $user = auth()->user();
+            
+            // Get main active templates
+            $mainForms = FormTemplate::with('fields')
                 ->active()
+                ->mainTemplates()
                 ->latest()
                 ->get();
+
+            // Get user-specific templates based on role and template type
+            $userSpecificForms = collect();
+            
+            if ($user->hasRole(['admin', 'hr'])) {
+                // Admin/HR can see all user-specific templates (both KYE and KYA)
+                $userSpecificForms = FormTemplate::with('fields')
+                    ->active()
+                    ->userSpecific()
+                    ->latest()
+                    ->get();
+            } else {
+                // Regular employees can only see KYE templates assigned to them
+                $userSpecificForms = FormTemplate::with('fields')
+                    ->active()
+                    ->where('template_type', FormTemplate::TEMPLATE_TYPE_KYE)
+                    ->assignedTo($user->id)
+                    ->latest()
+                    ->get();
+            }
+
+            // Combine both types of forms
+            $forms = $mainForms->merge($userSpecificForms);
 
             return $this->successResponse('Available forms retrieved successfully', $forms);
         } catch (\Exception $e) {
@@ -135,25 +203,86 @@ class FormSubmissionController extends Controller
      * @OA\Post(
      *     path="/employee/submissions",
      *     tags={"Form Submissions"},
-     *     summary="Submit form",
-     *     description="Create a new form submission with responses",
+     *     summary="Submit form with responses",
+     *     description="Create a new form submission with responses. Validates user access to templates: KYE templates can only be submitted by the assigned user, KYA templates can only be submitted by Admin/HR users.",
      *     security={{"bearerAuth":{}}},
      *     @OA\RequestBody(
      *         required=true,
      *         @OA\JsonContent(
      *             required={"form_template_id", "responses"},
-     *             @OA\Property(property="form_template_id", type="integer", example=1),
-     *             @OA\Property(property="status", type="string", enum={"draft", "submitted"}, example="submitted"),
+     *             @OA\Property(property="form_template_id", type="integer", description="ID of the form template to submit", example=1),
+     *             @OA\Property(property="status", type="string", enum={"draft", "submitted"}, description="Submission status", example="submitted"),
      *             @OA\Property(
      *                 property="responses",
      *                 type="object",
+     *                 description="Object containing field_id => response_value pairs",
      *                 example={"1": "John Doe", "2": "john@example.com", "3": "2024-01-15"}
      *             )
      *         )
      *     ),
      *     @OA\Response(
      *         response=201,
-     *         description="Form submitted successfully"
+     *         description="Form submitted successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Form submitted successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="object",
+     *                 @OA\Property(property="id", type="integer", example=1),
+     *                 @OA\Property(property="form_template_id", type="integer", example=1),
+     *                 @OA\Property(property="user_id", type="integer", example=3),
+     *                 @OA\Property(property="status", type="string", example="submitted"),
+     *                 @OA\Property(property="submitted_at", type="string", format="date-time", example="2024-01-15T10:30:00Z"),
+     *                 @OA\Property(
+     *                     property="template",
+     *                     type="object",
+     *                     @OA\Property(property="id", type="integer", example=1),
+     *                     @OA\Property(property="title", type="string", example="Employee Assessment")
+     *                 ),
+     *                 @OA\Property(
+     *                     property="responses",
+     *                     type="array",
+     *                     @OA\Items(
+     *                         type="object",
+     *                         @OA\Property(property="id", type="integer", example=1),
+     *                         @OA\Property(property="form_field_id", type="integer", example=1),
+     *                         @OA\Property(property="response_value", type="string", example="John Doe"),
+     *                         @OA\Property(
+     *                             property="field",
+     *                             type="object",
+     *                             @OA\Property(property="label", type="string", example="Full Name"),
+     *                             @OA\Property(property="field_type", type="string", example="text")
+     *                         )
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden - User does not have access to this template",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="You do not have permission to submit this form")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=422,
+     *         description="Validation failed",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Validation failed"),
+     *             @OA\Property(property="errors", type="object", example={"responses.1": {"The responses.1 field is required"}})
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthorized",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="success", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
      *     )
      * )
      */
