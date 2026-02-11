@@ -1,0 +1,364 @@
+{
+  "info": {
+    "_postman_id": "e5fd3aaf-3990-47db-a282-8ec8cda9b9a2",
+    "name": "Live CRM API - Laravel Sanctum",
+    "description": "Complete API collection for Live CRM with Laravel Sanctum authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "id": "724c7dfd-4919-42a2-99b8-ad9903f8f2a3",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set(\"auth_token\", jsonData.token);",
+                  "    pm.environment.set(\"user_id\", jsonData.user.id);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "id": "85a489b7-f855-45d7-af1f-8f72303b2566",
+                "exec": [
+                  ""
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "id": "f8c1bccd-e9b5-414d-ad7e-16f607b98726",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@crm.com\",\n    \"password\": \"password\",\n    \"device_name\": \"postman\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "login"
+              ]
+            },
+            "description": "Login with email and password to receive an authentication token"
+          },
+          "response": []
+        },
+        {
+          "name": "Validate Token",
+          "id": "63fd9755-8c9f-4b8e-84c4-5b8c1b98191c",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/validate-token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "validate-token"
+              ]
+            },
+            "description": "Check if the current token is valid"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.environment.set(\"auth_token\", jsonData.token);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "id": "964ca8ee-573a-4ead-8dd5-ab4016eb4a14"
+              }
+            }
+          ],
+          "id": "180bf365-1ebc-46f5-976a-e47ec6affb45",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"device_name\": \"postman\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/refresh-token",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "refresh-token"
+              ]
+            },
+            "description": "Refresh the authentication token (invalidates current token)"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "id": "3ca790ce-0e88-47b1-ae93-ee56a8c83edc",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "logout"
+              ]
+            },
+            "description": "Logout from current device (revokes current token)"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout All Devices",
+          "id": "487dc70d-f094-4e98-bf9e-932f574c50c1",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/logout-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "logout-all"
+              ]
+            },
+            "description": "Logout from all devices (revokes all tokens)"
+          },
+          "response": []
+        }
+      ],
+      "id": "4017c273-a2d0-400b-a60a-eb328fd19dde",
+      "description": "Authentication endpoints for login, register, token management"
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Get Current User",
+          "id": "0b774685-dc55-493f-b8c9-d1dcb43a44f0",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/user",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user"
+              ]
+            },
+            "description": "Get the currently authenticated user details"
+          },
+          "response": []
+        }
+      ],
+      "id": "acd228ee-1ec6-4cd9-9591-8e981f5b0a5e",
+      "description": "User-related endpoints"
+    },
+    {
+      "name": "App Data",
+      "item": [
+        {
+          "name": "Get App Details by Phone Number",
+          "id": "35691a3e-5ee4-4efb-b911-b84370a25823",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/:phone_number/app-details",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                ":phone_number",
+                "app-details"
+              ],
+              "variable": [
+                {
+                  "key": "phone_number",
+                  "value": "9812345678",
+                  "description": "Phone number to search for"
+                }
+              ]
+            },
+            "description": "Search for all deals, companies, and contacts associated with a phone number"
+          },
+          "response": []
+        }
+      ],
+      "id": "17e29c44-2a33-48ec-9a17-819006820e15",
+      "description": "App-specific data retrieval endpoints"
+    }
+  ],
+  "variable": [
+    {
+      "id": "a271fecf-5d17-4732-ae0c-fe4abee74e9f",
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "id": "c849b093-73ba-4675-8127-8c4e74844b14",
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "id": "5fa793b9-4a03-4919-a65c-dde0c64158ba",
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
